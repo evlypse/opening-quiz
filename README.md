@@ -1,3 +1,1 @@
-coucou
-have fun
-j'aime les pâtes chinoises goût canard
+coucou j'aime les pâtes chinoises goût canard
