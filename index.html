@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#f3edff">
+  <title>Devine l'opening</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+  <!-- Décor animé (purement visuel) -->
+  <div class="deco" aria-hidden="true">
+    <span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span>
+  </div>
+
+  <header class="top">
+    <h1>Devine l'opening</h1>
+
+    <div class="top-right">
+      <!-- Difficultés : on peut en activer plusieurs en même temps -->
+      <div class="mode-wrap">
+        <div class="mode" role="group" aria-label="Difficultés">
+          <button id="lvl-easy" class="seg active" type="button" aria-pressed="true">Facile</button>
+          <button id="lvl-medium" class="seg active" type="button" aria-pressed="true">Moyen</button>
+          <button id="lvl-hard" class="seg active" type="button" aria-pressed="true">Difficile</button>
+        </div>
+        <small id="mode-count" class="mode-count"></small>
+      </div>
+
+      <!-- Bouton d'aide : survol sur ordinateur, appui sur téléphone -->
+      <div id="help" class="help">
+        <button id="help-btn" class="btn square" type="button" aria-describedby="help-box" aria-label="Aide">?</button>
+        <div id="help-box" class="help-box" role="tooltip">
+          Devine l'anime grâce à l'opening ! N'oublie pas de remplir la case de l'anime et du numéro de l'opening, ca serait ballot si t'oubliais bg<br><br>
+          Merci <b>Claude</b> pour ton aide en vrai tu carry<br><br>
+          Créé par votre goat <b>Lypse</b>.
+          <!-- FIN DES EXPLICATIONS -->
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <main>
+
+    <!-- Lecteur audio -->
+    <section id="player-card" class="card">
+      <p id="notice" class="notice hidden"></p>
+
+      <div class="player-row">
+        <button id="play-btn" class="btn big" type="button" disabled>Chargement…</button>
+
+        <!-- Égaliseur décoratif : s'anime pendant la lecture -->
+        <div class="eq" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div>
+
+        <div class="volume">
+          <button id="vol-btn" class="btn square" type="button" aria-label="Volume">🔊</button>
+          <div id="vol-panel" class="vol-panel hidden">
+            <input id="vol-range" type="range" min="0" max="100" value="50" aria-label="Volume">
+            <span id="vol-val">50%</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="seek-row">
+        <span id="time-cur" class="time">0:00</span>
+        <input id="seek" type="range" min="0" max="5" step="0.01" value="0" disabled aria-label="Position dans l'audio">
+        <span id="time-max" class="time">0:05</span>
+      </div>
+
+      <!-- Durée de l'extrait (1 à 30 secondes) -->
+      <div class="length-row">
+        <label for="length-input">Extrait</label>
+        <button id="len-minus" class="btn mini" type="button" aria-label="Une seconde de moins">−</button>
+        <input id="length-input" type="number" min="1" max="30" step="1" value="5" inputmode="numeric">
+        <button id="len-plus" class="btn mini" type="button" aria-label="Une seconde de plus">+</button>
+        <span class="length-unit">secondes <small>(max 30)</small></span>
+      </div>
+
+      <p id="status" class="status"></p>
+
+      <div class="hints">
+        <button id="full-btn" class="btn" type="button" disabled>🔒 Opening entier</button>
+        <button id="letters-btn" class="btn" type="button" disabled>🔒 Initiales</button>
+      </div>
+
+      <div id="letters" class="letters hidden" aria-live="polite"></div>
+    </section>
+
+    <!-- Réponse -->
+    <section class="card">
+      <form id="answer-form" autocomplete="off">
+        <div class="answer-row">
+          <div class="field grow">
+            <label for="anime-input">Anime</label>
+            <div class="autocomplete">
+              <input id="anime-input" type="text" placeholder="Écris le nom…" role="combobox"
+                     aria-autocomplete="list" aria-expanded="false" aria-controls="suggestions"
+                     spellcheck="false" autocapitalize="off" autocorrect="off">
+              <ul id="suggestions" class="suggestions hidden" role="listbox"></ul>
+            </div>
+          </div>
+
+          <div class="field num">
+            <label for="opening-input">N°</label>
+            <input id="opening-input" type="number" min="1" step="1" value="1" inputmode="numeric">
+          </div>
+        </div>
+
+        <p id="answer-msg" class="answer-msg"></p>
+        <button id="submit-btn" class="btn big" type="submit" disabled>Valider</button>
+      </form>
+    </section>
+
+    <!-- Correction -->
+    <section id="result" class="card result hidden" aria-live="polite">
+      <div id="verdict" class="verdict"></div>
+      <ul id="result-details" class="details"></ul>
+      <button id="next-btn" class="btn big" type="button">Suivant ➜</button>
+    </section>
+
+  </main>
+
+  <script src="js/animes.js"></script>
+  <script src="js/app.js"></script>
+  <script src="js/fx.js"></script>
+</body>
+</html>
