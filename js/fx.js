@@ -19,9 +19,9 @@
   }
 
   // Réglages faciles à modifier
-  const COLORS = ['#a98ff7', '#c2adff', '#8f9bff', '#ff7fc0', '#6a4cc4', '#d6c4ff'];
-  const TRAIL_STEP = 22;      // distance (px) entre deux points de la traînée
-  const MAX_DOTS = 110;       // nombre maximal de points affichés en même temps
+  const COLORS = ['#8c6cf0', '#c8b6ff', '#7c86f2', '#6a47d8', '#cbcbdb'];
+  const TRAIL_STEP = 60;      // distance (px) entre deux points de la traînée (plus grand = moins de points)
+  const MAX_DOTS = 40;       // nombre maximal de points affichés en même temps
   const REPEL_REACH = 260;    // distance (px) à partir de laquelle les formes s'écartent
   const REPEL_FORCE = 90;     // déplacement maximal (px) des formes
 
@@ -33,10 +33,10 @@
     const el = document.createElement('div');
     el.className = 'fx-dot';
 
-    const size = opts.size || 5 + Math.random() * 7;
-    const life = opts.life || 700 + Math.random() * 500;
+    const size = opts.size || 3 + Math.random() * 3;
+    const life = opts.life || 500 + Math.random() * 400;
     const angle = Math.random() * Math.PI * 2;
-    const dist = opts.dist || 14 + Math.random() * 30;
+    const dist = opts.dist || 8 + Math.random() * 16;
     const rise = opts.rise === undefined ? 10 : opts.rise;
     const color = COLORS[Math.floor(Math.random() * COLORS.length)];
 
@@ -62,8 +62,8 @@
     for (let i = 0; i < count; i++) dot(x, y, opts);
   }
 
-  window.fxBurst = (x, y, n = 24) => {
-    burst(x, y, n, { dist: 50 + Math.random() * 90, rise: 30, life: 900 + Math.random() * 700 });
+  window.fxBurst = (x, y, n = 18) => {
+    burst(x, y, n, { size: 4 + Math.random() * 4, dist: 40 + Math.random() * 70, rise: 24, life: 800 + Math.random() * 500 });
   };
 
   /* --- 1. Traînée de points sous la souris --- */
@@ -85,7 +85,7 @@
 
   /* --- 2. Petite gerbe au clic / à la touche --- */
   window.addEventListener('pointerdown', (e) => {
-    burst(e.clientX, e.clientY, 8, { dist: 24 + Math.random() * 36, life: 600 + Math.random() * 400 });
+    burst(e.clientX, e.clientY, 4, { dist: 14 + Math.random() * 20, life: 500 + Math.random() * 300 });
   }, { passive: true });
 
   /* --- 3. Les formes du fond s'écartent de la souris --- */

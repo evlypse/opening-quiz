@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <meta name="theme-color" content="#f3edff">
+  <meta name="theme-color" content="#f4f4f8">
   <title>Devine l'opening</title>
   <link rel="stylesheet" href="css/style.css">
 </head>
@@ -11,30 +11,54 @@
 
   <!-- Décor animé (purement visuel) -->
   <div class="deco" aria-hidden="true">
-    <span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span>
+    <span></span><span></span><span></span><span></span><span></span><span></span>
   </div>
 
   <header class="top">
-    <h1>Devine l'opening</h1>
+    <div class="brand">
+      <h1>Devine l'opening</h1>
+      <!-- Historique des dernières réponses (apparaît après la première) -->
+      <div class="hist-row">
+        <div id="history" class="history" aria-label="Historique des réponses"></div>
+        <span id="streak" class="streak"></span>
+      </div>
+    </div>
 
     <div class="top-right">
       <!-- Difficultés : on peut en activer plusieurs en même temps -->
-      <div class="mode-wrap">
-        <div class="mode" role="group" aria-label="Difficultés">
-          <button id="lvl-easy" class="seg active" type="button" aria-pressed="true">Facile</button>
-          <button id="lvl-medium" class="seg active" type="button" aria-pressed="true">Moyen</button>
-          <button id="lvl-hard" class="seg active" type="button" aria-pressed="true">Difficile</button>
-        </div>
-        <small id="mode-count" class="mode-count"></small>
+      <div class="mode" role="group" aria-label="Difficultés">
+        <button id="lvl-easy" class="seg active" type="button" aria-pressed="true">Facile</button>
+        <button id="lvl-medium" class="seg active" type="button" aria-pressed="true">Moyen</button>
+        <button id="lvl-hard" class="seg active" type="button" aria-pressed="true">Difficile</button>
       </div>
 
-      <!-- Bouton d'aide : survol sur ordinateur, appui sur téléphone -->
+      <!-- Aide : survol sur ordinateur, appui sur téléphone -->
       <div id="help" class="help">
-        <button id="help-btn" class="btn square" type="button" aria-describedby="help-box" aria-label="Aide">?</button>
+        <button id="help-btn" class="btn secondary square" type="button" aria-describedby="help-box" aria-label="Aide">?</button>
         <div id="help-box" class="help-box" role="tooltip">
-          Devine l'anime grâce à l'opening ! N'oublie pas de remplir la case de l'anime et du numéro de l'opening, ca serait ballot si t'oubliais bg<br><br>
-          Merci <b>Claude</b> pour ton aide en vrai tu carry<br><br>
-          Créé par votre goat <b>Lypse</b>.
+          <!-- ✏️ EXPLICATIONS : tu peux modifier ce texte (balises <h3>, <p>, <ul>, <b>, <u>…).
+               Les <span data-count="…"> sont remplis automatiquement par le site. -->
+          <h3>Comment jouer</h3>
+          <p>Un extrait d'opening est joué à un <b>moment aléatoire</b>. Trouve <b>l'anime</b> et le <b>numéro de l'opening</b>, puis valide. Quand un anime a plusieurs saisons, ses openings sont <u>numérotés à la suite</u> : le premier opening de la saison 2 prend le numéro qui suit le dernier de la saison 1.</p>
+          <ul>
+            <li><b>Extrait</b> : règle la durée de 0,1 à 20 secondes. La barre permet de se déplacer dans l'extrait.</li>
+            <li><b>Opening entier</b> : débloque la musique complète.</li>
+            <li><b>Initiales</b> : se débloque ensuite et affiche la première lettre de chaque mot du titre.</li>
+            <li><b>Valider</b> donne <b>Correct</b> (bon anime et bon numéro), <b>Presque</b> (bon anime, mauvais numéro) ou <b>Faux</b>. <b>Abandonner</b> révèle simplement la réponse.</li>
+          </ul>
+          <p>Après chaque réponse, tu vois le titre, la couverture, un lien MyAnimeList et la vidéo de l'opening. Le mode est illimité, sans score.</p>
+
+          <h3>Difficultés</h3>
+          <p>Active-en une ou plusieurs : le jeu tire au hasard parmi celles qui sont activées.</p>
+          <ul>
+            <li><b>Facile</b> — <span data-count="easy">…</span> openings : animes très connus et openings cultes.</li>
+            <li><b>Moyen</b> — <span data-count="medium">…</span> openings : animes connus, openings moins marquants.</li>
+            <li><b>Difficile</b> — <span data-count="hard">…</span> openings : tout le reste du catalogue.</li>
+          </ul>
+          <p class="small">Les openings d'avant 1996 sont rétrogradés d'un cran, sauf les plus cultes. Les nombres se calculent au premier chargement du site (quelques minutes), puis restent en mémoire.</p>
+
+          <h3>À propos</h3>
+          <p>Site créé en <b>octobre 2026</b> avec l'aide de <b>Claude</b> (IA d'Anthropic), à partir des idées et des tests de son créateur et de ses amis. Il tourne entièrement dans ton navigateur, sans serveur. Musiques, vidéos et couvertures viennent d'<a href="https://animethemes.moe" target="_blank" rel="noopener noreferrer">AnimeThemes</a>, les fiches de <a href="https://myanimelist.net" target="_blank" rel="noopener noreferrer">MyAnimeList</a>. Le classement des difficultés est un choix humain (époque, popularité, notoriété de l'opening), pas une mesure automatique des vues ou des streams.</p>
           <!-- FIN DES EXPLICATIONS -->
         </div>
       </div>
@@ -54,7 +78,7 @@
         <div class="eq" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div>
 
         <div class="volume">
-          <button id="vol-btn" class="btn square" type="button" aria-label="Volume">🔊</button>
+          <button id="vol-btn" class="btn secondary square" type="button" aria-label="Volume">🔊</button>
           <div id="vol-panel" class="vol-panel hidden">
             <input id="vol-range" type="range" min="0" max="100" value="50" aria-label="Volume">
             <span id="vol-val">50%</span>
@@ -68,20 +92,20 @@
         <span id="time-max" class="time">0:05</span>
       </div>
 
-      <!-- Durée de l'extrait (1 à 30 secondes) -->
+      <!-- Durée de l'extrait (0,1 à 20 secondes) -->
       <div class="length-row">
         <label for="length-input">Extrait</label>
-        <button id="len-minus" class="btn mini" type="button" aria-label="Une seconde de moins">−</button>
-        <input id="length-input" type="number" min="1" max="30" step="1" value="5" inputmode="numeric">
-        <button id="len-plus" class="btn mini" type="button" aria-label="Une seconde de plus">+</button>
-        <span class="length-unit">secondes <small>(max 30)</small></span>
+        <button id="len-minus" class="btn secondary mini" type="button" aria-label="Moins de secondes">−</button>
+        <input id="length-input" type="number" min="0.1" max="20" step="0.1" value="5" inputmode="decimal">
+        <button id="len-plus" class="btn secondary mini" type="button" aria-label="Plus de secondes">+</button>
+        <span class="length-unit">secondes <small>(0,1 à 20)</small></span>
       </div>
 
       <p id="status" class="status"></p>
 
       <div class="hints">
-        <button id="full-btn" class="btn" type="button" disabled>🔒 Opening entier</button>
-        <button id="letters-btn" class="btn" type="button" disabled>🔒 Initiales</button>
+        <button id="full-btn" class="btn hint-full" type="button" disabled>🔒 Opening entier</button>
+        <button id="letters-btn" class="btn hint-letters" type="button" disabled>🔒 Initiales</button>
       </div>
 
       <div id="letters" class="letters hidden" aria-live="polite"></div>
@@ -94,7 +118,7 @@
           <div class="field grow">
             <label for="anime-input">Anime</label>
             <div class="autocomplete">
-              <input id="anime-input" type="text" placeholder="Écris le nom…" role="combobox"
+              <input id="anime-input" type="text" placeholder="nom de l'anime" role="combobox"
                      aria-autocomplete="list" aria-expanded="false" aria-controls="suggestions"
                      spellcheck="false" autocapitalize="off" autocorrect="off">
               <ul id="suggestions" class="suggestions hidden" role="listbox"></ul>
@@ -108,14 +132,30 @@
         </div>
 
         <p id="answer-msg" class="answer-msg"></p>
-        <button id="submit-btn" class="btn big" type="submit" disabled>Valider</button>
+        <div class="form-actions">
+          <button id="submit-btn" class="btn big" type="submit" disabled>Valider</button>
+          <button id="giveup-btn" class="btn secondary" type="button" disabled>Abandonner</button>
+        </div>
       </form>
     </section>
 
     <!-- Correction -->
     <section id="result" class="card result hidden" aria-live="polite">
-      <div id="verdict" class="verdict"></div>
-      <ul id="result-details" class="details"></ul>
+      <div class="result-top">
+        <img id="res-cover" class="cover hidden" alt="" loading="lazy" referrerpolicy="no-referrer">
+        <div class="result-body">
+          <div id="verdict" class="verdict"></div>
+          <ul id="result-details" class="details"></ul>
+        </div>
+      </div>
+
+      <div class="result-actions">
+        <a id="res-mal" class="btn secondary hidden" target="_blank" rel="noopener noreferrer">Fiche MyAnimeList ↗</a>
+        <button id="res-video-btn" class="btn secondary hidden" type="button">▶ Voir l'opening</button>
+      </div>
+
+      <video id="res-video" class="res-video hidden" controls playsinline preload="none"></video>
+
       <button id="next-btn" class="btn big" type="button">Suivant ➜</button>
     </section>
 
