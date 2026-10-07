@@ -5,6 +5,7 @@
    * Réglages
    * ------------------------------------------------------------------ */
   const API = 'https://api.animethemes.moe';
+  const JIKAN = 'https://api.jikan.moe/v4';
   const DEFAULT_LENGTH = 5;       // durée par défaut de l'extrait (secondes)
   const MIN_LENGTH = 0.1;
   const MAX_LENGTH = 20;          // durée maximale de l'extrait
@@ -16,22 +17,27 @@
   const HISTORY_MAX = 14;
 
   // Index des franchises (mis en cache dans le navigateur pour ne pas tout recalculer)
-  const INDEX_KEY = 'opening-quiz-index-v2';
+  const INDEX_KEY = 'opening-quiz-index-v3';
   const INDEX_TTL = 14 * 24 * 3600 * 1000;   // 14 jours
   const INDEX_DELAY = 1100;                  // pause (ms) entre deux requêtes d'indexation
+  const FAV_KEY = 'opening-quiz-favs-v1';
 
   // Variantes de "include" : si l'API en refuse une, on passe à la suivante (moins riche).
   const INC = {
-    theme: [   // détails d'un opening (audio, vidéo, couverture, lien MAL, noms anglais)
-      'anime.images,anime.resources,anime.animesynonyms,animethemeentries.videos.audio,song.artists',
-      'anime.images,anime.resources,animethemeentries.videos.audio,song.artists',
-      'anime.images,animethemeentries.videos.audio,song.artists',
-      'anime,animethemeentries.videos.audio,song'
-    ],
-    members: ['animethemes,animesynonyms', 'animethemes'],   // saisons d'une même franchise
-    search: ['animesynonyms', '']                            // suggestions de la recherche
+    theme: ['anime,animethemeentries.videos.audio,song.artists', 'anime,animethemeentries.videos.audio,song'],
+    members: ['animethemes.song,animesynonyms', 'animethemes.song', 'animethemes'],   // saisons d'une franchise
+    search: ['animesynonyms', ''],                                                    // suggestions de la recherche
+    detail: ['resources,images,animesynonyms', 'resources,images', 'resources', ''],  // lien MAL, couverture, noms anglais
+    lib: ['animethemes.song.artists,animesynonyms', 'animethemes.song', 'animethemes'] // bibliothèque
   };
-  const incLevel = { theme: 0, members: 0, search: 0 };
+  const incLevel = { theme: 0, members: 0, search: 0, detail: 0, lib: 0 };
+
+  // On ne garde que les openings "officiels" de la série : pas les films, OVA, spéciaux, courts
+  // formats ni les versions doublées. (Ce sont eux qui faussaient la numérotation.)
+  const BAD_FORMATS = new Set(['movie', 'ova', 'special', 'tv short']);
+  const BAD_GROUP = /dub|english|latin|german|french|spanish|korean|chinese|italian|portuguese|russian|arabic|hindi|tagalog/i;
+
+  const SEASON_FR = { winter: 'Hiver', spring: 'Printemps', summer: 'Été', fall: 'Automne' };
 
   /* ------------------------------------------------------------------
    * Éléments du DOM
@@ -60,6 +66,7 @@
   const openingInput = $('opening-input');
   const suggestionsEl = $('suggestions');
   const answerMsg = $('answer-msg');
+  const waitMsg = $('wait-msg');
   const submitBtn = $('submit-btn');
   const giveUpBtn = $('giveup-btn');
   const resultCard = $('result');
@@ -68,8 +75,10 @@
   const nextBtn = $('next-btn');
   const resCover = $('res-cover');
   const resMal = $('res-mal');
+  const favBtn = $('fav-btn');
   const resVideoBtn = $('res-video-btn');
   const resVideo = $('res-video');
+  const scoreboardEl = $('scoreboard');
   const helpWrap = $('help');
   const helpBtn = $('help-btn');
   const historyEl = $('history');
@@ -114,6 +123,11 @@
       .replace(/\s*[:\-–—]\s*$/, '')
       .trim();
   }
+
+  const fmtDate = (season, year) => {
+    const s = SEASON_FR[String(season || '').toLowerCase()] || '';
+    return [s, year || ''].filter(Boolean).join(' ');
+  };
 
   const store = {
     get(key, fallback) {
@@ -179,7 +193,8 @@
     if (!Number.isFinite(v)) return DEFAULT_LENGTH;
     return Math.min(MAX_LENGTH, Math.max(MIN_LENGTH, Math.round(v * 10) / 10));
   };
-  let snippetSeconds = clampLength(parseFloat(store.get('opening-quiz-length', String(DEFAULT_LENGTH))));
+  const savedLength = () => clampLength(parseFloat(store.get('opening-quiz-length', String(DEFAULT_LENGTH))));
+  let snippetSeconds = savedLength();
 
   function loadLevels() {
     const raw = store.get('opening-quiz-levels', LEVELS.join(','));
@@ -194,6 +209,8 @@
 
   let roundId = 0;
   let round = null;          // voir infoFromTheme()
+  let lastVerdict = null;    // { cls, label } du round en cours
+  let resultShown = false;
   let snippetStart = 0;
   let ready = false;
   let fullUnlocked = false;
@@ -203,6 +220,10 @@
   let dragging = false;
   let rafId = 0;
   let reloadTimer = 0;
+  let hintsAllowed = true;
+
+  // Crochets utilisés par le mode multijoueur (js/multi.js)
+  const mp = { active: false, onAnswer: null, onNext: null };
 
   const recent = [];                 // derniers animes joués
   const history = [];                // résultats récents (pour la petite frise)
@@ -332,10 +353,10 @@
     lenPlus.disabled = !enabled;
   }
 
-  function applyLength(value) {
+  function applyLength(value, persist = true) {
     snippetSeconds = clampLength(value);
     lengthInput.value = String(snippetSeconds);
-    store.set('opening-quiz-length', snippetSeconds);
+    if (persist) store.set('opening-quiz-length', snippetSeconds);
 
     if (round && ready && !fullUnlocked) {
       // On garde le même point de départ, sauf s'il ne laisse plus assez de place
@@ -386,6 +407,7 @@
 
   audio.addEventListener('play', () => {
     resVideo.pause();                 // jamais deux sons en même temps
+    document.dispatchEvent(new CustomEvent('oq:gameaudio'));
     updatePlayBtn();
     cancelAnimationFrame(rafId);
     rafId = requestAnimationFrame(tick);
@@ -414,7 +436,7 @@
   });
 
   fullBtn.addEventListener('click', () => {
-    if (!ready || fullUnlocked) return;
+    if (!ready || fullUnlocked || answered) return;
     fullUnlocked = true;
     setLengthEnabled(false);
     setHintBtn(fullBtn, 'Opening entier', 'done');
@@ -441,7 +463,7 @@
   }
 
   lettersBtn.addEventListener('click', () => {
-    if (!round || !fullUnlocked || lettersShown) return;
+    if (!round || !fullUnlocked || lettersShown || answered) return;
     lettersShown = true;
     buildHint(round.anime.title);
     lettersEl.classList.remove('hidden');
@@ -492,20 +514,29 @@
       slug: a.slug,
       year: a.year || 0,
       season: a.season || '',
+      format: String(a.media_format || '').toLowerCase(),
       english: pickEnglish(a.animesynonyms),
       themes: Array.isArray(a.animethemes) ? a.animethemes : []
     };
   }
 
   const seasonOrder = (s) => ({ winter: 0, spring: 1, summer: 2, fall: 3 }[String(s).toLowerCase()] ?? 4);
+  const songKey = (t) => (t && t.song && t.song.title ? norm(t.song.title) : '');
+  // Un opening officiel de la série : type OP, sans version doublée
+  const usableTheme = (t) => t && t.type === 'OP' && !(t.group && BAD_GROUP.test(String(t.group)));
 
   // Numérote les openings "à la suite" à travers les saisons d'une franchise.
-  function computeOps(members) {
-    members.sort((a, b) => (a.year - b.year) || (seasonOrder(a.season) - seasonOrder(b.season)));
+  // Films, OVA, spéciaux et courts formats sont ignorés (sauf l'anime de départ lui-même).
+  function computeOps(members, anchorSlug) {
+    const list = members
+      .filter((m) => m.slug === anchorSlug || !BAD_FORMATS.has(m.format))
+      .slice()
+      .sort((a, b) => (a.year - b.year) || (seasonOrder(a.season) - seasonOrder(b.season)));
+
     let offset = 0;
     const ops = [];
-    members.forEach((m) => {
-      const opThemes = m.themes.filter((t) => t.type === 'OP');
+    list.forEach((m) => {
+      const opThemes = m.themes.filter(usableTheme);
       if (!opThemes.length) return;
       const seqs = opThemes.map((t) => t.sequence || 1);
       const minSeq = Math.min(...seqs);
@@ -513,11 +544,18 @@
       const continuous = minSeq > 1;      // la saison continue déjà la numérotation : on la garde telle quelle
       opThemes.forEach((t) => {
         const seq = t.sequence || 1;
-        ops.push({ themeId: t.id, number: continuous ? seq : offset + seq, year: m.year });
+        ops.push({ themeId: t.id, number: continuous ? seq : offset + seq, year: m.year, s: songKey(t) });
       });
       offset = continuous ? Math.max(offset, maxSeq) : offset + maxSeq;
     });
     return ops;
+  }
+
+  // Numéros qui portent exactement la même musique (ex. opening 2 et 3 identiques)
+  function altNumbers(ops, op) {
+    if (!op.s) return [];
+    return Array.from(new Set(ops.filter((o) => o.s === op.s && o.number !== op.number).map((o) => o.number)))
+      .sort((a, b) => a - b);
   }
 
   // Recherche d'animes par nom (avec leurs openings), pour retrouver toutes les saisons.
@@ -535,20 +573,25 @@
   const looseCache = new Map();
   async function franchiseFor(entry, theme) {
     const key = keyOf(entry.name);
-    if (looseCache.has(key)) return looseCache.get(key);
+    const cacheKey = key + '|' + (BAD_FORMATS.has(entry.format) ? entry.slug : '');
+    if (looseCache.has(cacheKey)) return looseCache.get(cacheKey);
 
     let members = [];
-    try {
-      const list = await getMembersList(cleanTitle(entry.name));
-      members = list.filter((e) => keyOf(e.name) === key);
-    } catch (err) {
-      console.warn('[Opening Quiz] Saisons introuvables :', err);
+    if (!BAD_FORMATS.has(entry.format)) {
+      try {
+        const list = await getMembersList(cleanTitle(entry.name));
+        members = list.filter((e) => keyOf(e.name) === key);
+      } catch (err) {
+        console.warn('[Opening Quiz] Saisons introuvables :', err);
+      }
     }
-    if (!members.some((m) => m.slug === entry.slug)) {
-      members.push({ ...entry, themes: [{ id: theme.id, type: 'OP', sequence: theme.sequence }] });
+    const mine = members.find((m) => m.slug === entry.slug);
+    if (!mine || !mine.themes.some((t) => t.id === theme.id)) {
+      members = members.filter((m) => m.slug !== entry.slug);
+      members.push({ ...entry, themes: [{ id: theme.id, type: 'OP', sequence: theme.sequence, group: theme.group, song: theme.song }] });
     }
-    const fr = { ops: computeOps(members) };
-    looseCache.set(key, fr);
+    const fr = { ops: computeOps(members, entry.slug) };
+    looseCache.set(cacheKey, fr);
     return fr;
   }
 
@@ -570,6 +613,7 @@
     const list = await getMembersList(q);
 
     let anchor = list.find((e) => e.slug === f.slug)
+      || list.find((e) => f.keys.includes(keyOf(e.name)) && !BAD_FORMATS.has(e.format))
       || list.find((e) => f.keys.includes(keyOf(e.name)))
       || null;
 
@@ -586,12 +630,12 @@
     const members = list.filter((e) => keyOf(e.name) === key);
     if (!members.some((m) => m.slug === anchor.slug)) members.push(anchor);
 
-    const ops = computeOps(members);
+    const ops = computeOps(members, anchor.slug);
     if (!ops.length) return null;
     return { name: anchor.name, ops };
   }
 
-  /* --- Détails d'un opening --- */
+  /* --- Détails d'un opening / d'un anime --- */
 
   async function fetchTheme(themeId) {
     const res = await fetchVariants('theme', `/animetheme/${themeId}`, {});
@@ -600,9 +644,58 @@
     return data.animetheme || null;
   }
 
-  // Extrait audio, vidéo et infos musicales d'un "theme" (null si pas d'audio ou NSFW).
+  // Lien MyAnimeList, couverture et nom anglais (requête séparée : l'API ne les donne pas via l'opening)
+  const detailCache = new Map();
+  async function fetchAnimeDetails(slug) {
+    if (!slug) return null;
+    if (detailCache.has(slug)) return detailCache.get(slug);
+    let out = null;
+    try {
+      const res = await fetchVariants('detail', `/anime/${encodeURIComponent(slug)}`, {});
+      if (res && res.ok) {
+        const a = (await res.json()).anime || {};
+        const r = Array.isArray(a.resources) ? a.resources.find((x) => /myanimelist/i.test(String(x.site))) : null;
+        const malId = r && r.external_id ? String(r.external_id) : '';
+        out = {
+          malId,
+          malUrl: r ? (r.link || (malId ? `https://myanimelist.net/anime/${malId}` : '')) : '',
+          cover: pickCover(a.images),
+          english: pickEnglish(a.animesynonyms)
+        };
+      }
+    } catch (err) {
+      console.warn('[Opening Quiz] Détails de l\'anime indisponibles :', err);
+    }
+    detailCache.set(slug, out);
+    return out;
+  }
+
+  // Note et genres depuis MyAnimeList (via l'API gratuite Jikan)
+  const jikanCache = new Map();
+  async function fetchJikan(malId) {
+    if (!malId) return null;
+    if (jikanCache.has(malId)) return jikanCache.get(malId);
+    let out = null;
+    try {
+      const res = await fetch(`${JIKAN}/anime/${malId}`);
+      if (res.ok) {
+        const d = (await res.json()).data || {};
+        out = {
+          score: typeof d.score === 'number' ? d.score : null,
+          genres: (d.genres || []).map((g) => g.name),
+          cover: d.images && d.images.jpg ? d.images.jpg.large_image_url : ''
+        };
+      }
+    } catch (err) {
+      console.warn('[Opening Quiz] Jikan indisponible :', err);
+    }
+    jikanCache.set(malId, out);
+    return out;
+  }
+
+  // Extrait audio, vidéo et infos musicales d'un "theme" (null si pas d'audio, NSFW ou doublé).
   function candidateFromTheme(theme) {
-    if (!theme || theme.type !== 'OP') return null;
+    if (!usableTheme(theme)) return null;
 
     let url = null;
     let video = null;
@@ -638,15 +731,8 @@
     return (large || images[0]).link || '';
   }
 
-  function pickMal(resources) {
-    if (!Array.isArray(resources)) return '';
-    const r = resources.find((x) => /myanimelist/i.test(String(x.site)));
-    if (!r) return '';
-    return r.link || (r.external_id ? `https://myanimelist.net/anime/${r.external_id}` : '');
-  }
-
   // Assemble tout ce qu'il faut pour un round.
-  function infoFromTheme(theme, number, f) {
+  function infoFromTheme(theme, number, f, extra = {}) {
     const cand = candidateFromTheme(theme);
     if (!cand) return null;
     const a = theme.anime || {};
@@ -656,12 +742,33 @@
 
     return {
       ...cand,
+      themeId: theme.id,
       number,
+      altNumbers: extra.altNumbers || [],
+      tier: extra.tier || 'hard',
       recentKey: f ? f.slug : keyOf(a.name),
+      animeSlug: a.slug || '',
+      year: a.year || 0,
+      season: a.season || '',
       cover: pickCover(a.images),
-      mal: pickMal(a.resources),
-      anime: { title, keys, name: a.name || '', year: a.year || 0 }
+      mal: '',
+      malId: '',
+      fixedTitle: !!f,
+      anime: { title, keys, name: a.name || '' }
     };
+  }
+
+  // Complète un round avec le lien MAL, la couverture et le nom anglais.
+  async function prepareInfo(info) {
+    const det = await fetchAnimeDetails(info.animeSlug);
+    if (!det) return;
+    if (det.cover) info.cover = det.cover;
+    info.mal = det.malUrl || '';
+    info.malId = det.malId || '';
+    if (det.english) {
+      info.anime.keys.add(keyOf(det.english));
+      if (!info.fixedTitle) info.anime.title = cleanTitle(det.english);
+    }
   }
 
   /* ------------------------------------------------------------------
@@ -681,6 +788,7 @@
 
   LEVELS.forEach((l) => {
     levelBtns[l].addEventListener('click', () => {
+      if (mp.active) return;                    // en multijoueur, c'est l'hôte qui règle les difficultés
       if (levels.has(l)) {
         if (levels.size === 1) return;          // il faut toujours au moins une difficulté
         levels.delete(l);
@@ -693,8 +801,10 @@
     });
   });
 
+  const yearOk = (y, o) => !y || ((!o.yearMin || y >= o.yearMin) && (!o.yearMax || y <= o.yearMax));
+
   // Facile / moyen : on choisit une franchise de la liste, puis un de ses openings de cette difficulté.
-  async function randomOpeningCurated(level) {
+  async function randomOpeningCurated(level, opts) {
     const hasLevel = (f) => f.tier === level
       || (!f.keep && DEMOTE[f.tier] === level)
       || Object.values(f.ops || {}).includes(level);
@@ -710,12 +820,12 @@
       return null;
     }
 
-    const candidates = data.ops.filter((o) => opTier(f, o) === level);
+    const candidates = data.ops.filter((o) => opTier(f, o) === level && yearOk(o.year, opts));
     if (!candidates.length) return null;
     const op = pick(candidates);
 
     const theme = await fetchTheme(op.themeId);
-    return infoFromTheme(theme, op.number, f);
+    return infoFromTheme(theme, op.number, f, { altNumbers: altNumbers(data.ops, op), tier: level });
   }
 
   // Nombre total d'openings : avec une page de 1 résultat, la dernière page = le total.
@@ -737,7 +847,7 @@
   }
 
   // Difficile : un opening au hasard dans tout le catalogue, hors openings déjà classés facile / moyen.
-  async function randomOpeningHard() {
+  async function randomOpeningHard(opts) {
     if (!totalOPs) {
       totalOPs = await probeTotal();
       renderCounts();
@@ -752,11 +862,13 @@
 
     const data = await res.json();
     const theme = (data.animethemes || [])[0];
-    if (!theme || !theme.anime) return null;
+    if (!theme || !theme.anime || !usableTheme(theme)) return null;
+    if (!yearOk(theme.anime.year, opts)) return null;
 
     const entry = entryInfo(theme.anime);
     const f = findCurated(entry);
     let number;
+    let alts = [];
 
     if (f) {
       // Anime de la liste : on ne garde que ses openings classés "difficile"
@@ -765,19 +877,22 @@
       const op = fdata && fdata.ops.find((o) => o.themeId === theme.id);
       if (!op || opTier(f, op) !== 'hard') return null;
       number = op.number;
+      alts = altNumbers(fdata.ops, op);
     } else {
       if (recent.includes(keyOf(entry.name))) return null;
       const fr = await franchiseFor(entry, theme);
       const op = fr.ops.find((o) => o.themeId === theme.id);
       number = op ? op.number : (theme.sequence || 1);
+      alts = op ? altNumbers(fr.ops, op) : [];
     }
-    return infoFromTheme(theme, number, f);
+    return infoFromTheme(theme, number, f, { altNumbers: alts, tier: 'hard' });
   }
 
   // Tire une difficulté parmi celles activées, puis un opening de cette difficulté.
-  async function fetchRandomOpening() {
-    const level = pick(LEVELS.filter((l) => levels.has(l)));
-    return level === 'hard' ? randomOpeningHard() : randomOpeningCurated(level);
+  async function fetchRandomOpening(opts = {}) {
+    const active = opts.levels ? LEVELS.filter((l) => opts.levels.includes(l)) : LEVELS.filter((l) => levels.has(l));
+    const level = pick(active.length ? active : LEVELS);
+    return level === 'hard' ? randomOpeningHard(opts) : randomOpeningCurated(level, opts);
   }
 
   /* ------------------------------------------------------------------
@@ -826,7 +941,7 @@
         if (d === null) {
           f._dead = true;
         } else if (d) {
-          f._data = { name: d.n, ops: d.o.map(([themeId, number, year]) => ({ themeId, number, year })) };
+          f._data = { name: d.n, ops: d.o.map(([themeId, number, year, s]) => ({ themeId, number, year, s })) };
         }
       });
       if (c.total) { totalOPs = c.total; totalKnown = !!c.known; }
@@ -837,7 +952,7 @@
     try {
       const d = {};
       ANIMES.forEach((f) => {
-        if (f._data) d[f.slug] = { n: f._data.name, o: f._data.ops.map((o) => [o.themeId, o.number, o.year]) };
+        if (f._data) d[f.slug] = { n: f._data.name, o: f._data.ops.map((o) => [o.themeId, o.number, o.year, o.s]) };
         else if (f._dead) d[f.slug] = null;
       });
       localStorage.setItem(INDEX_KEY, JSON.stringify({ t: indexStamp, d, total: totalOPs, known: totalKnown }));
@@ -877,9 +992,56 @@
   window.addEventListener('beforeunload', saveIndexCache);
 
   /* ------------------------------------------------------------------
+   * Favoris (♥)
+   * ------------------------------------------------------------------ */
+  let favs = [];
+  try { favs = JSON.parse(store.get(FAV_KEY, '[]')) || []; } catch (e) { favs = []; }
+  const favListeners = [];
+  const saveFavs = () => { store.set(FAV_KEY, JSON.stringify(favs)); favListeners.forEach((fn) => fn(favs)); };
+
+  const favApi = {
+    list: () => favs.slice(),
+    has: (id) => favs.some((f) => f.id === id),
+    add(entry) { if (!favApi.has(entry.id)) { favs.unshift(entry); saveFavs(); } },
+    remove(id) { favs = favs.filter((f) => f.id !== id); saveFavs(); },
+    toggle(entry) { if (favApi.has(entry.id)) favApi.remove(entry.id); else favApi.add(entry); return favApi.has(entry.id); },
+    subscribe(fn) { favListeners.push(fn); }
+  };
+
+  const favFromInfo = (info) => ({
+    id: info.themeId,
+    title: info.anime.title,
+    number: info.number,
+    songTitle: info.songTitle,
+    artists: info.artists,
+    year: info.year,
+    season: info.season,
+    slug: info.animeSlug,
+    tier: info.tier,
+    mal: info.mal,
+    cover: info.cover,
+    audio: info.url,
+    video: info.videoUrl
+  });
+
+  function updateFavBtn() {
+    const on = !!round && favApi.has(round.themeId);
+    favBtn.textContent = on ? '♥ Favori' : '♡ Favori';
+    favBtn.classList.toggle('on', on);
+    favBtn.setAttribute('aria-pressed', String(on));
+  }
+
+  favBtn.addEventListener('click', () => {
+    if (!round || !resultShown) return;
+    favApi.toggle(favFromInfo(round));
+    updateFavBtn();
+  });
+  favApi.subscribe(updateFavBtn);
+
+  /* ------------------------------------------------------------------
    * Chargement audio
    * ------------------------------------------------------------------ */
-  function prepareAudio(url) {
+  function prepareAudio(url, forcedStart) {
     return new Promise((resolve) => {
       let finished = false;
       const finish = (ok) => {
@@ -897,7 +1059,7 @@
 
         // Point de départ aléatoire, n'importe où dans l'opening (avec la place pour tout l'extrait)
         const maxStart = Number.isFinite(d) ? Math.max(0, d - snippetSeconds - 0.5) : 30;
-        snippetStart = Math.random() * maxStart;
+        snippetStart = typeof forcedStart === 'number' ? Math.min(Math.max(0, forcedStart), maxStart) : Math.random() * maxStart;
         finish(true);
       };
       const onError = () => finish(false);
@@ -927,6 +1089,8 @@
     audio.pause();
     cancelAnimationFrame(rafId);
     round = null;
+    lastVerdict = null;
+    resultShown = false;
     ready = false;
     fullUnlocked = false;
     lettersShown = false;
@@ -937,7 +1101,7 @@
     playerCard.classList.remove('answered');
     setHintBtn(fullBtn, 'Opening entier', 'locked');
     setHintBtn(lettersBtn, 'Initiales', 'locked');
-    setLengthEnabled(true);
+    setLengthEnabled(!mp.active);
     lettersEl.classList.add('hidden');
     lettersEl.textContent = '';
 
@@ -955,65 +1119,121 @@
     submitBtn.disabled = true;
     giveUpBtn.disabled = true;
     answerMsg.textContent = '';
+    waitMsg.classList.add('hidden');
     closeSuggestions();
 
     resultCard.classList.add('hidden');
+    scoreboardEl.classList.add('hidden');
+    nextBtn.classList.remove('hidden');
     resetVideo();
     updatePlayBtn();
   }
 
+  // Cherche un opening jouable (audio chargé). null = annulé, undefined = échec.
+  async function acquireRound(id, opts = {}) {
+    for (let i = 0; i < MAX_ATTEMPTS; i++) {
+      try {
+        const info = await fetchRandomOpening(opts);
+        if (id !== roundId) return null;
+        if (!info) continue;
+
+        const [ok] = await Promise.all([prepareAudio(info.url), prepareInfo(info)]);
+        if (id !== roundId) return null;
+        if (!ok) {
+          console.warn('[Opening Quiz] Audio impossible à charger :', info.anime.title);
+          continue;
+        }
+        info.snippetStart = snippetStart;
+        return info;
+      } catch (err) {
+        console.warn('[Opening Quiz] Erreur de chargement :', err);
+        if (id !== roundId) return null;
+        await sleep(400);
+      }
+    }
+    return undefined;
+  }
+
+  // Le round est prêt : on active l'interface.
+  function activateRound(info) {
+    round = info;
+    recent.push(info.recentKey);
+    if (recent.length > RECENT_MEMORY) recent.shift();
+
+    ready = true;
+    audio.currentTime = snippetStart;
+    seek.disabled = false;
+    refreshSeek();
+    playerCard.classList.toggle('nohints', !hintsAllowed);
+    setHintBtn(fullBtn, 'Opening entier', hintsAllowed ? 'ready' : 'locked');
+    statusEl.textContent = '';
+    submitBtn.disabled = false;
+    giveUpBtn.disabled = false;
+    updatePlayBtn();
+    // Sur téléphone, on ne met pas le curseur dans le champ : cela ouvrirait le clavier tout seul
+    if (!coarsePointer) animeInput.focus({ preventScroll: true });
+  }
+
+  function showLoadError(message) {
+    statusEl.textContent = message;
+    verdictEl.className = 'verdict hidden';
+    detailsEl.textContent = '';
+    resCover.classList.add('hidden');
+    resMal.classList.add('hidden');
+    favBtn.classList.add('hidden');
+    resVideoBtn.classList.add('hidden');
+    resultCard.classList.remove('hidden');
+  }
+
   async function loadRound() {
+    if (mp.active) return;
     clearTimeout(reloadTimer);
     const id = ++roundId;
     resetUI();
     statusEl.textContent = 'Chargement…';
 
-    for (let i = 0; i < MAX_ATTEMPTS; i++) {
-      try {
-        const info = await fetchRandomOpening();
-        if (id !== roundId) return;
-        if (!info) continue;
-
-        const ok = await prepareAudio(info.url);
-        if (id !== roundId) return;
-        if (!ok) {
-          console.warn('[Opening Quiz] Audio impossible à charger :', info.anime.title);
-          continue;
-        }
-
-        round = info;
-        recent.push(info.recentKey);
-        if (recent.length > RECENT_MEMORY) recent.shift();
-
-        ready = true;
-        audio.currentTime = snippetStart;
-        seek.disabled = false;
-        refreshSeek();
-        setHintBtn(fullBtn, 'Opening entier', 'ready');
-        statusEl.textContent = '';
-        submitBtn.disabled = false;
-        giveUpBtn.disabled = false;
-        updatePlayBtn();
-        // Sur téléphone, on ne met pas le curseur dans le champ : cela ouvrirait le clavier tout seul
-        if (!coarsePointer) animeInput.focus({ preventScroll: true });
-        return;
-      } catch (err) {
-        console.warn('[Opening Quiz] Erreur de chargement :', err);
-        if (id !== roundId) return;
-        await sleep(400);
-      }
+    const info = await acquireRound(id);
+    if (info === null) return;
+    if (!info) {
+      showLoadError('Impossible de charger un opening (connexion ?). Clique sur « Suivant » pour réessayer.');
+      return;
     }
-
-    if (id === roundId) {
-      statusEl.textContent = 'Impossible de charger un opening (connexion ?). Clique sur « Suivant » pour réessayer.';
-      verdictEl.className = 'verdict hidden';
-      detailsEl.textContent = '';
-      resCover.classList.add('hidden');
-      resMal.classList.add('hidden');
-      resVideoBtn.classList.add('hidden');
-      resultCard.classList.remove('hidden');
-    }
+    activateRound(info);
   }
+
+  // --- Multijoueur : l'hôte tire l'opening, les invités reçoivent le même ---
+  async function hostRound(opts) {
+    const id = ++roundId;
+    resetUI();
+    statusEl.textContent = 'Chargement…';
+    const info = await acquireRound(id, opts);
+    if (!info) return info;
+    activateRound(info);
+    return info;
+  }
+
+  function prepareWaiting(text) {
+    ++roundId;
+    resetUI();
+    statusEl.textContent = text || 'Chargement…';
+  }
+
+  async function guestRound(info) {
+    const id = ++roundId;
+    resetUI();
+    statusEl.textContent = 'Chargement…';
+    const ok = await prepareAudio(info.url, info.snippetStart);
+    if (id !== roundId) return false;
+    if (!ok) {
+      statusEl.textContent = 'Audio impossible à charger.';
+      return false;
+    }
+    activateRound(info);
+    return true;
+  }
+
+  const serializeInfo = (info) => ({ ...info, anime: { ...info.anime, keys: Array.from(info.anime.keys) } });
+  const deserializeInfo = (o) => ({ ...o, anime: { ...o.anime, keys: new Set(o.anime.keys) } });
 
   /* ------------------------------------------------------------------
    * Autocomplétion : liste locale tout de suite, puis recherche dans tout le catalogue
@@ -1169,7 +1389,7 @@
   animeInput.addEventListener('blur', () => setTimeout(closeSuggestions, 150));
 
   /* ------------------------------------------------------------------
-   * Historique des réponses (petite frise)
+   * Historique des réponses (petite frise, en bas de page)
    * ------------------------------------------------------------------ */
   const HIST_LABEL = { correct: 'Correct', presque: 'Presque', faux: 'Faux', gaveup: 'Abandon' };
 
@@ -1186,22 +1406,100 @@
       historyEl.appendChild(s);
     });
     streakEl.textContent = streak > 1 ? 'Série : ' + streak : '';
+    document.dispatchEvent(new CustomEvent('oq:history'));
   }
 
   /* ------------------------------------------------------------------
-   * Fin d'un round : validation ou abandon
+   * Fin d'un round : validation ou abandon, puis affichage du résultat
    * ------------------------------------------------------------------ */
-  function sameAnime(guess, truthKeys) {
-    return guess.keys.some((k) => truthKeys.has(k));
+  function judge(guess, num, gaveUp) {
+    if (gaveUp) return { cls: 'gaveup', label: 'Abandon' };
+    const animeOk = guess.keys.some((k) => round.anime.keys.has(k));
+    // Deux openings qui portent la même musique sont tous les deux acceptés
+    const numOk = num === round.number || (round.altNumbers || []).includes(num);
+    if (animeOk && numOk) return { cls: 'correct', label: 'Correct' };
+    if (animeOk) return { cls: 'presque', label: 'Presque' };
+    return { cls: 'faux', label: 'Faux' };
   }
 
   function addDetail(label, value) {
     const li = document.createElement('li');
     const strong = document.createElement('strong');
     strong.textContent = label;
+    const val = document.createElement('span');
+    val.textContent = ' ' + value;
     li.appendChild(strong);
-    li.appendChild(document.createTextNode(' ' + value));
+    li.appendChild(val);
     detailsEl.appendChild(li);
+    return { li, val };
+  }
+
+  function showResult() {
+    if (!round || !answered || resultShown || !lastVerdict) return;
+    resultShown = true;
+    const thisRound = round;
+    const { cls, label } = lastVerdict;
+
+    verdictEl.textContent = label;
+    verdictEl.className = 'verdict ' + cls;
+
+    detailsEl.textContent = '';
+    addDetail('Anime', round.anime.title);
+    const same = round.altNumbers && round.altNumbers.length
+      ? ' (même musique que le n°' + round.altNumbers.join(', n°') + ')' : '';
+    addDetail('Opening', round.number + same);
+    const song = [round.songTitle, round.artists.length ? '— ' + round.artists.join(', ') : '']
+      .filter(Boolean).join(' ');
+    if (song) addDetail('Musique', song);
+    const date = fmtDate(round.season, round.year);
+    if (date) addDetail('Sortie', date);
+    const genresRow = addDetail('Genres', '…');
+    const scoreRow = addDetail('Note MAL', '…');
+
+    // Couverture et liens
+    if (round.cover) {
+      resCover.src = round.cover;
+      resCover.alt = 'Couverture : ' + round.anime.title;
+      resCover.classList.remove('hidden');
+    } else {
+      resCover.classList.add('hidden');
+    }
+    // Lien MyAnimeList (à défaut, une recherche MyAnimeList sur le titre)
+    resMal.href = round.mal || ('https://myanimelist.net/anime.php?q=' + encodeURIComponent(round.anime.title));
+    resMal.classList.remove('hidden');
+    favBtn.classList.remove('hidden');
+    updateFavBtn();
+    resVideoBtn.classList.toggle('hidden', !round.videoUrl);
+
+    resultCard.classList.remove('hidden');
+    if (!mp.active) nextBtn.focus({ preventScroll: true });
+    resultCard.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+
+    // Le lecteur passe sur l'opening entier, sans le lancer : on reste à l'endroit de l'extrait
+    fullUnlocked = true;
+    setLengthEnabled(false);
+    refreshSeek();
+
+    pushHistory(cls);
+
+    // Note et genres (MyAnimeList via Jikan)
+    fetchJikan(round.malId).then((j) => {
+      if (round !== thisRound) return;
+      if (j && j.genres.length) genresRow.val.textContent = ' ' + j.genres.join(', ');
+      else genresRow.li.classList.add('hidden');
+      if (j && j.score) scoreRow.val.textContent = ' ' + j.score.toFixed(2) + ' / 10';
+      else scoreRow.li.classList.add('hidden');
+      if (j && j.cover && !round.cover) {
+        resCover.src = j.cover;
+        resCover.classList.remove('hidden');
+      }
+    });
+
+    // Petite fête quand tout est bon (effet défini dans js/fx.js)
+    if (cls === 'correct' && typeof window.fxBurst === 'function') {
+      const r = verdictEl.getBoundingClientRect();
+      window.fxBurst(r.left + r.width / 2, r.top + r.height / 2, 22);
+    }
   }
 
   function finishRound(guess, num, gaveUp) {
@@ -1212,63 +1510,17 @@
     submitBtn.disabled = true;
     giveUpBtn.disabled = true;
     closeSuggestions();
-
-    let label;
-    let cls;
-    if (gaveUp) {
-      label = 'Abandon';
-      cls = 'gaveup';
-    } else {
-      const animeOk = sameAnime(guess, round.anime.keys);
-      const numOk = num === round.number;
-      if (animeOk && numOk) { label = 'Correct'; cls = 'correct'; }
-      else if (animeOk) { label = 'Presque'; cls = 'presque'; }
-      else { label = 'Faux'; cls = 'faux'; }
-    }
-
-    verdictEl.textContent = label;
-    verdictEl.className = 'verdict ' + cls;
-
-    detailsEl.textContent = '';
-    addDetail('Anime', round.anime.title + (round.anime.year ? ' (' + round.anime.year + ')' : ''));
-    addDetail('Opening', String(round.number));
-    const song = [round.songTitle, round.artists.length ? '— ' + round.artists.join(', ') : '']
-      .filter(Boolean).join(' ');
-    if (song) addDetail('Musique', song);
-
-    // Couverture et liens
-    if (round.cover) {
-      resCover.src = round.cover;
-      resCover.alt = 'Couverture : ' + round.anime.title;
-      resCover.classList.remove('hidden');
-    } else {
-      resCover.classList.add('hidden');
-    }
-    if (round.mal) {
-      resMal.href = round.mal;
-      resMal.classList.remove('hidden');
-    } else {
-      resMal.classList.add('hidden');
-    }
-    resVideoBtn.classList.toggle('hidden', !round.videoUrl);
-
-    resultCard.classList.remove('hidden');
-    nextBtn.focus({ preventScroll: true });
-    resultCard.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-
-    // Le lecteur passe sur l'opening entier, sans le lancer : on reste à l'endroit de l'extrait
-    fullUnlocked = true;
-    setLengthEnabled(false);
     playerCard.classList.add('answered');
-    refreshSeek();
+    lastVerdict = judge(guess, num, gaveUp);
 
-    pushHistory(cls);
-
-    // Petite fête quand tout est bon (effet défini dans js/fx.js)
-    if (cls === 'correct' && typeof window.fxBurst === 'function') {
-      const r = verdictEl.getBoundingClientRect();
-      window.fxBurst(r.left + r.width / 2, r.top + r.height / 2, 22);
+    if (mp.active) {
+      // Multijoueur : on garde la réponse pour soi jusqu'à ce que tout le monde ait validé
+      waitMsg.textContent = 'Réponse envoyée. En attente des autres joueurs…';
+      waitMsg.classList.remove('hidden');
+      if (mp.onAnswer) mp.onAnswer(lastVerdict.cls);
+      return;
     }
+    showResult();
   }
 
   form.addEventListener('submit', (e) => {
@@ -1304,7 +1556,13 @@
     finishRound(null, null, true);
   });
 
-  nextBtn.addEventListener('click', loadRound);
+  nextBtn.addEventListener('click', () => {
+    if (mp.active) {
+      if (mp.onNext) mp.onNext();
+    } else {
+      loadRound();
+    }
+  });
 
   /* ------------------------------------------------------------------
    * Vidéo de l'opening (affichée après la réponse, chargée seulement au clic)
@@ -1323,7 +1581,41 @@
     }
   });
 
-  /* TEST_HOOK */
+  /* ------------------------------------------------------------------
+   * API partagée avec js/library.js (bibliothèque, favoris) et js/multi.js (multijoueur)
+   * ------------------------------------------------------------------ */
+  window.OQ = {
+    ANIMES, LEVELS, SEASON_FR, BAD_FORMATS,
+    norm, baseKey, keyOf, cleanTitle, fmtDate,
+    entryInfo, computeOps, altNumbers, findCurated, opTier, resolveCurated,
+    fetchVariants, fetchTheme, fetchAnimeDetails, candidateFromTheme, usableTheme,
+    favs: favApi,
+    mp,
+    // Multijoueur
+    hostRound, guestRound, prepareWaiting, showResult, serializeInfo, deserializeInfo,
+    enterMulti(settings) {
+      mp.active = true;
+      document.body.classList.add('is-multi');
+      hintsAllowed = settings.hints !== false;
+      applyLength(settings.length, false);
+      setLengthEnabled(false);
+    },
+    exitMulti() {
+      mp.active = false;
+      mp.onAnswer = null;
+      mp.onNext = null;
+      document.body.classList.remove('is-multi');
+      hintsAllowed = true;
+      applyLength(savedLength(), false);
+      loadRound();
+    },
+    setHintsAllowed(v) { hintsAllowed = !!v; },
+    getRound: () => round,
+    isAnswered: () => answered,
+    forceGiveUp() { if (round && !answered) finishRound(null, null, true); },
+    nextBtn,
+    pauseGame() { audio.pause(); resVideo.pause(); }
+  };
 
   /* ------------------------------------------------------------------
    * Démarrage

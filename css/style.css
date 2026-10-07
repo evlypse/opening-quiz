@@ -549,3 +549,209 @@ input:disabled { background: var(--g100); color: var(--g500); }
   .cover { width: 70px; flex-basis: 70px; }
   .help-box { right: -4px; }
 }
+
+/* ======================================================================
+   Particules sous la souris (js/fx.js)  — CORRECTIF : ces règles manquaient
+   ====================================================================== */
+.fx-dot {
+  position: fixed;
+  z-index: 300;
+  border-radius: 50%;
+  pointer-events: none;
+  opacity: 0;
+  animation: fx-pop var(--life, 800ms) ease-out forwards;
+}
+@keyframes fx-pop {
+  0%   { opacity: 0.9; transform: translate(-50%, -50%) scale(1) rotate(0deg); }
+  100% { opacity: 0;   transform: translate(calc(-50% + var(--dx, 0px)), calc(-50% + var(--dy, 0px))) scale(0.2) rotate(120deg); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .fx-dot { display: none; }
+}
+
+/* ======================================================================
+   Menu, pied de page, favoris, bandeau multijoueur
+   ====================================================================== */
+.nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  max-width: 800px;
+  margin: 0 auto;
+  padding: 0 16px 12px;
+}
+.btn.mini2 { padding: 5px 10px; font-size: 0.8rem; }
+
+.foot {
+  max-width: 800px;
+  margin: 0 auto;
+  padding: 0 16px 36px;
+  text-align: center;
+}
+.foot .hist-row { justify-content: center; margin: 0 0 8px; }
+.foot-label { font-size: 0.74rem; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; color: var(--g500); }
+.foot-credits { margin: 4px 0 0; font-size: 0.74rem; color: var(--g500); }
+.foot-credits a { color: var(--g700); }
+
+.hist-row { display: flex; align-items: center; gap: 10px; min-height: 18px; }
+.history { display: flex; gap: 3px; }
+.history .h { width: 10px; height: 10px; border-radius: 2px; }
+.history .correct { background: var(--good); }
+.history .presque { background: var(--almost); }
+.history .faux { background: var(--bad); }
+.history .gaveup { background: var(--g500); }
+.streak { font-size: 0.78rem; font-weight: 700; color: var(--v700); }
+
+.heart.on { color: #c0392b; border-color: #e6a0a0; background: #fff1f1; }
+.heart.on:hover:not(:disabled) { background: #ffe3e3; }
+
+.wait-msg { margin: 10px 0 0; font-size: 0.88rem; font-weight: 600; color: var(--v700); }
+
+.mp-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 8px 12px;
+  background: var(--v50);
+  border: 1px solid var(--v200);
+  border-left: 3px solid var(--v500);
+  border-radius: var(--r-s);
+  font-size: 0.86rem;
+  font-weight: 600;
+  color: var(--v700);
+}
+.mp-bar-actions { display: flex; gap: 6px; flex-shrink: 0; }
+
+/* En multijoueur, les réglages sont ceux de l'hôte */
+.is-multi .mode { opacity: 0.45; pointer-events: none; }
+.is-multi .length-row { display: none; }
+.nohints .hints, .nohints .letters { display: none; }
+
+/* ---------- Résultats de manche (multijoueur) ---------- */
+.scoreboard { margin-top: 14px; padding: 10px 12px; background: var(--g100); border-radius: var(--r-s); }
+.scoreboard h3 { margin: 0 0 6px; font-size: 0.82rem; letter-spacing: 0.05em; text-transform: uppercase; color: var(--v700); }
+.scoreboard ol { margin: 0; padding: 0; list-style: none; }
+.scoreboard li { display: flex; align-items: center; gap: 8px; padding: 5px 0; border-bottom: 1px solid var(--g200); font-size: 0.92rem; }
+.scoreboard li:last-child { border-bottom: none; }
+.scoreboard li.me { font-weight: 700; }
+.sb-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sb-verdict { font-size: 0.72rem; font-weight: 700; color: #fff; padding: 2px 8px; border-radius: 4px; }
+.sb-verdict.correct { background: var(--good); }
+.sb-verdict.presque { background: var(--almost); }
+.sb-verdict.faux { background: var(--bad); }
+.sb-verdict.gaveup { background: var(--gaveup); }
+.sb-score { min-width: 52px; text-align: right; }
+.mp-next-msg { margin: 12px 0 0; font-weight: 600; font-size: 0.9rem; color: var(--g700); }
+
+/* ======================================================================
+   Panneau : bibliothèque, favoris, multijoueur
+   ====================================================================== */
+.panel {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 24px 12px;
+  background: rgba(34, 32, 58, 0.45);
+  overflow-y: auto;
+}
+.panel-box {
+  width: min(720px, 100%);
+  max-height: calc(100vh - 48px);
+  display: flex;
+  flex-direction: column;
+  background: var(--white);
+  border: 1px solid var(--g300);
+  border-top: 3px solid var(--v500);
+  border-radius: var(--r);
+  box-shadow: 0 12px 40px rgba(34, 32, 58, 0.3);
+}
+.panel-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 12px; border-bottom: 1px solid var(--g200); }
+.tabs { display: flex; gap: 4px; flex-wrap: wrap; }
+.tab {
+  font: inherit; font-weight: 600; font-size: 0.88rem;
+  padding: 7px 12px;
+  background: transparent; color: var(--g700);
+  border: 1px solid transparent; border-radius: var(--r-s);
+  cursor: pointer;
+}
+.tab:hover { background: var(--g100); }
+.tab.active { background: var(--v50); color: var(--v700); border-color: var(--v200); }
+.panel-body { padding: 14px; overflow-y: auto; }
+body.panel-open { overflow: hidden; }
+
+/* Bibliothèque */
+.lib-chips { display: flex; gap: 6px; margin: 10px 0 4px; flex-wrap: wrap; }
+.lib-chip {
+  font: inherit; font-size: 0.8rem; font-weight: 600;
+  padding: 5px 12px; background: var(--white); color: var(--g700);
+  border: 1px solid var(--g300); border-radius: 999px; cursor: pointer;
+}
+.lib-chip.active { background: var(--v600); border-color: var(--v700); color: #fff; }
+.lib-info { margin: 8px 0; font-size: 0.84rem; color: var(--g700); }
+.lib-list { display: flex; flex-direction: column; gap: 6px; }
+.lib-item { border: 1px solid var(--g200); border-radius: var(--r-s); background: var(--white); }
+.lib-item > summary {
+  display: flex; align-items: center; gap: 8px;
+  padding: 9px 12px; cursor: pointer; list-style: none; font-weight: 600;
+}
+.lib-item > summary::-webkit-details-marker { display: none; }
+.lib-item > summary::before { content: "▸"; color: var(--g500); transition: transform 0.15s; }
+.lib-item[open] > summary::before { transform: rotate(90deg); }
+.lib-item[open] > summary { background: var(--g100); }
+.lib-title { flex: 1; min-width: 0; }
+.lib-count { font-size: 0.78rem; font-weight: 600; color: var(--g500); }
+.lib-rows { margin: 0; padding: 4px 8px 8px; list-style: none; }
+.lib-row { display: flex; align-items: center; gap: 8px; padding: 6px 4px; border-bottom: 1px solid var(--g200); }
+.lib-row:last-child { border-bottom: none; }
+.lib-num { min-width: 34px; font-weight: 800; color: var(--v700); font-variant-numeric: tabular-nums; }
+.lib-song { flex: 1; min-width: 0; display: flex; flex-direction: column; font-size: 0.9rem; }
+.lib-song b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lib-song small { color: var(--g500); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lib-msg { padding: 8px 4px; font-size: 0.85rem; color: var(--g500); list-style: none; }
+.lib-row .btn.mini { flex-shrink: 0; }
+.heart-mini.on { color: #c0392b; border-color: #e6a0a0; background: #fff1f1; }
+#lib-q { width: 100%; }
+a.btn.mini { display: inline-flex; align-items: center; justify-content: center; width: auto; min-width: 32px; padding: 0 8px; font-size: 0.75rem; }
+
+.pill { flex-shrink: 0; font-size: 0.7rem; font-weight: 700; letter-spacing: 0.03em; padding: 2px 8px; border-radius: 4px; color: #fff; }
+.pill.easy { background: var(--good); }
+.pill.medium { background: var(--almost); }
+.pill.hard { background: var(--bad); }
+
+/* Multijoueur */
+.mp-block { display: flex; flex-direction: column; gap: 10px; }
+.mp-block h3 { margin: 6px 0 0; font-size: 0.85rem; letter-spacing: 0.05em; text-transform: uppercase; color: var(--v700); }
+.mp-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 4px; }
+.mp-join { display: flex; gap: 8px; }
+.mp-join input { width: 140px; text-align: center; letter-spacing: 0.2em; font-weight: 700; text-transform: uppercase; }
+.mp-msg { min-height: 1.2em; margin: 0; font-size: 0.88rem; font-weight: 600; color: var(--bad); }
+.mp-code-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.mp-code { font-size: 1.6rem; letter-spacing: 0.25em; color: var(--v700); }
+.mp-players { margin: 0; padding: 0; list-style: none; display: flex; flex-wrap: wrap; gap: 6px; }
+.mp-players li { padding: 5px 10px; background: var(--g100); border: 1px solid var(--g200); border-radius: 999px; font-size: 0.88rem; }
+.mp-players li.is-host { border-color: var(--v500); background: var(--v50); }
+.mp-settings { display: flex; flex-direction: column; gap: 8px; padding: 12px; border: 1px solid var(--g200); border-radius: var(--r-s); background: var(--g100); }
+.mp-settings h3 { margin-top: 0; }
+.mp-row { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+.mp-label { min-width: 150px; font-weight: 600; font-size: 0.88rem; text-transform: none; letter-spacing: 0; color: var(--ink); }
+.mp-check { display: inline-flex; align-items: center; gap: 6px; font-size: 0.88rem; font-weight: 500; text-transform: none; letter-spacing: 0; color: var(--ink); }
+.mp-check input { width: auto; }
+.mp-row input[type="number"] { width: 84px; padding: 7px 8px; }
+.mp-row small { color: var(--g500); }
+.mp-summary { margin: 0; padding: 10px 12px; background: var(--v50); border: 1px solid var(--v200); border-radius: var(--r-s); font-size: 0.88rem; }
+.mp-wait { margin: 0; font-weight: 600; color: var(--g700); }
+
+@media (max-width: 520px) {
+  .nav { padding: 0 10px 8px; gap: 6px; }
+  .nav .btn { flex: 1; padding: 8px 6px; font-size: 0.82rem; }
+  .panel { padding: 8px 6px; }
+  .panel-box { max-height: calc(100vh - 16px); }
+  .panel-body { padding: 10px; }
+  .mp-label { min-width: 100%; }
+  .mp-bar { flex-direction: column; align-items: flex-start; }
+  .foot { padding: 0 10px 28px; }
+}

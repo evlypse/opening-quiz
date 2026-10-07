@@ -17,11 +17,6 @@
   <header class="top">
     <div class="brand">
       <h1>Devine l'opening</h1>
-      <!-- Historique des dernières réponses (apparaît après la première) -->
-      <div class="hist-row">
-        <div id="history" class="history" aria-label="Historique des réponses"></div>
-        <span id="streak" class="streak"></span>
-      </div>
     </div>
 
     <div class="top-right">
@@ -36,36 +31,65 @@
       <div id="help" class="help">
         <button id="help-btn" class="btn secondary square" type="button" aria-describedby="help-box" aria-label="Aide">?</button>
         <div id="help-box" class="help-box" role="tooltip">
-          <!-- ✏️ EXPLICATIONS : tu peux modifier ce texte (balises <h3>, <p>, <ul>, <b>, <u>…).
+          <!-- ✏️ RÈGLES : tu peux modifier ce texte (balises <h3>, <p>, <ul>, <b>, <u>…).
                Les <span data-count="…"> sont remplis automatiquement par le site. -->
-          <h3>Comment jouer</h3>
-          <p>Un extrait d'opening est joué à un <b>moment aléatoire</b>. Trouve <b>l'anime</b> et le <b>numéro de l'opening</b>, puis valide. Quand un anime a plusieurs saisons, ses openings sont <u>numérotés à la suite</u> : le premier opening de la saison 2 prend le numéro qui suit le dernier de la saison 1.</p>
+          <h3>Jouer</h3>
           <ul>
-            <li><b>Extrait</b> : règle la durée de 0,1 à 20 secondes. La barre permet de se déplacer dans l'extrait.</li>
-            <li><b>Opening entier</b> : débloque la musique complète.</li>
-            <li><b>Initiales</b> : se débloque ensuite et affiche la première lettre de chaque mot du titre.</li>
-            <li><b>Valider</b> donne <b>Correct</b> (bon anime et bon numéro), <b>Presque</b> (bon anime, mauvais numéro) ou <b>Faux</b>. <b>Abandonner</b> révèle simplement la réponse.</li>
+            <li>Un extrait d'opening est joué à un <b>moment aléatoire</b> (durée réglable : <b>0,1 à 20 s</b>).</li>
+            <li>Trouve <b>l'anime</b> et le <b>numéro de l'opening</b>, puis <b>Valider</b>. Les saisons d'un anime sont regroupées et ses openings numérotés <u>à la suite</u>. Si deux openings ont la même musique, les deux numéros sont acceptés.</li>
+            <li><b>Correct</b> = bon anime et bon numéro · <b>Presque</b> = bon anime, mauvais numéro · <b>Faux</b>. <b>Abandonner</b> montre la réponse.</li>
           </ul>
-          <p>Après chaque réponse, tu vois le titre, la couverture, un lien MyAnimeList et la vidéo de l'opening. Le mode est illimité, sans score.</p>
 
-          <h3>Difficultés</h3>
-          <p>Active-en une ou plusieurs : le jeu tire au hasard parmi celles qui sont activées.</p>
+          <h3>Indices</h3>
           <ul>
-            <li><b>Facile</b> — <span data-count="easy">…</span> openings : animes très connus et openings cultes.</li>
-            <li><b>Moyen</b> — <span data-count="medium">…</span> openings : animes connus, openings moins marquants.</li>
-            <li><b>Difficile</b> — <span data-count="hard">…</span> openings : tout le reste du catalogue.</li>
+            <li><b>Opening entier</b> : la musique complète. Il débloque ensuite <b>Initiales</b> : la première lettre de chaque mot du titre.</li>
           </ul>
-          <p class="small">Les openings d'avant 1996 sont rétrogradés d'un cran, sauf les plus cultes. Les nombres se calculent au premier chargement du site (quelques minutes), puis restent en mémoire.</p>
 
-          <h3>À propos</h3>
-          <p>Site créé en <b>octobre 2026</b> avec l'aide de <b>Claude</b> (IA d'Anthropic), à partir des idées et des tests de son créateur et de ses amis. Il tourne entièrement dans ton navigateur, sans serveur. Musiques, vidéos et couvertures viennent d'<a href="https://animethemes.moe" target="_blank" rel="noopener noreferrer">AnimeThemes</a>, les fiches de <a href="https://myanimelist.net" target="_blank" rel="noopener noreferrer">MyAnimeList</a>. Le classement des difficultés est un choix humain (époque, popularité, notoriété de l'opening), pas une mesure automatique des vues ou des streams.</p>
-          <!-- FIN DES EXPLICATIONS -->
+          <h3>Difficultés (cumulables)</h3>
+          <ul>
+            <li><b>Facile</b> : <span data-count="easy">…</span> openings, les plus connus.</li>
+            <li><b>Moyen</b> : <span data-count="medium">…</span> openings, animes connus mais openings moins marquants.</li>
+            <li><b>Difficile</b> : <span data-count="hard">…</span> openings, tout le reste du catalogue.</li>
+          </ul>
+          <p class="small">Classement fait à la main : époque, popularité de l'anime, notoriété de l'opening. Les openings d'avant 1996 sont rétrogradés d'un cran, sauf les plus cultes. Les nombres se calculent au premier chargement (quelques minutes).</p>
+
+          <h3>Après la réponse</h3>
+          <ul>
+            <li>Titre, couverture, sortie, genres, note et lien <b>MyAnimeList</b>, et la <b>vidéo</b> de l'opening.</li>
+            <li><b>♡ Favori</b> garde l'opening dans ta liste de favoris. La <b>Bibliothèque</b> liste tous les openings, avec recherche et difficulté.</li>
+          </ul>
+
+          <h3>Multijoueur</h3>
+          <ul>
+            <li>Crée une room et partage le <b>code</b> (ou le lien). L'hôte règle tout : difficultés, de <b>1 à 100</b> openings, durée de l'extrait, années, indices.</li>
+            <li>Tout le monde entend le même extrait. L'opening n'est révélé que quand <b>tous</b> les joueurs ont validé ou abandonné. 1 point par <b>Correct</b>.</li>
+          </ul>
+
+          <h3>Crédits</h3>
+          <p>Créé par Lypse avec l'aide de Claude AI.</p>
+          <!-- FIN DES RÈGLES -->
         </div>
       </div>
     </div>
   </header>
 
+  <!-- Bibliothèque / Favoris / Multijoueur -->
+  <nav class="nav" aria-label="Menu">
+    <button id="nav-library" class="btn secondary" type="button">Bibliothèque</button>
+    <button id="nav-favs" class="btn secondary" type="button">♥ Favoris</button>
+    <button id="nav-multi" class="btn secondary" type="button">Multijoueur</button>
+  </nav>
+
   <main>
+
+    <!-- Bandeau du mode multijoueur -->
+    <div id="mp-bar" class="mp-bar hidden">
+      <span id="mp-bar-text"></span>
+      <span class="mp-bar-actions">
+        <button id="mp-force" class="btn secondary mini2 hidden" type="button" title="Révéler sans attendre les joueurs qui n'ont pas répondu">Révéler maintenant</button>
+        <button id="mp-bar-leave" class="btn secondary mini2" type="button">Quitter</button>
+      </span>
+    </div>
 
     <!-- Lecteur audio -->
     <section id="player-card" class="card">
@@ -136,6 +160,7 @@
           <button id="submit-btn" class="btn big" type="submit" disabled>Valider</button>
           <button id="giveup-btn" class="btn secondary" type="button" disabled>Abandonner</button>
         </div>
+        <p id="wait-msg" class="wait-msg hidden"></p>
       </form>
     </section>
 
@@ -151,18 +176,138 @@
 
       <div class="result-actions">
         <a id="res-mal" class="btn secondary hidden" target="_blank" rel="noopener noreferrer">Fiche MyAnimeList ↗</a>
+        <button id="fav-btn" class="btn secondary heart hidden" type="button" aria-pressed="false" title="Ajouter aux favoris">♡ Favori</button>
         <button id="res-video-btn" class="btn secondary hidden" type="button">▶ Voir l'opening</button>
       </div>
 
       <video id="res-video" class="res-video hidden" controls playsinline preload="none"></video>
+
+      <!-- Multijoueur : résultats de la manche -->
+      <div id="scoreboard" class="scoreboard hidden">
+        <h3 id="sb-title"></h3>
+        <ol id="sb-list"></ol>
+      </div>
+      <p id="mp-next-msg" class="mp-next-msg hidden"></p>
 
       <button id="next-btn" class="btn big" type="button">Suivant ➜</button>
     </section>
 
   </main>
 
+  <footer class="foot">
+    <div class="hist-row">
+      <span class="foot-label">Dernières réponses</span>
+      <div id="history" class="history" aria-label="Historique des réponses"></div>
+      <span id="streak" class="streak"></span>
+    </div>
+    <p class="foot-credits">Musiques et vidéos : <a href="https://animethemes.moe" target="_blank" rel="noopener noreferrer">AnimeThemes</a> · Fiches : <a href="https://myanimelist.net" target="_blank" rel="noopener noreferrer">MyAnimeList</a></p>
+  </footer>
+
+  <!-- Panneau : bibliothèque, favoris, multijoueur -->
+  <div id="panel" class="panel hidden" role="dialog" aria-modal="true" aria-label="Menu">
+    <div class="panel-box">
+      <div class="panel-head">
+        <div class="tabs" role="tablist">
+          <button class="tab active" type="button" data-tab="library">Bibliothèque</button>
+          <button class="tab" type="button" data-tab="favs">Favoris</button>
+          <button class="tab" type="button" data-tab="multi">Multijoueur</button>
+        </div>
+        <button id="panel-close" class="btn secondary square" type="button" aria-label="Fermer">✕</button>
+      </div>
+
+      <div class="panel-body">
+
+        <!-- Bibliothèque -->
+        <section id="tab-library" class="tabpane">
+          <input id="lib-q" type="text" placeholder="rechercher un anime (tout le catalogue)" spellcheck="false" autocomplete="off">
+          <div class="lib-chips" role="group" aria-label="Difficultés affichées">
+            <button class="lib-chip active" type="button" data-tier="easy">Facile</button>
+            <button class="lib-chip active" type="button" data-tier="medium">Moyen</button>
+            <button class="lib-chip active" type="button" data-tier="hard">Difficile</button>
+          </div>
+          <p id="lib-info" class="lib-info"></p>
+          <div id="lib-list" class="lib-list"></div>
+        </section>
+
+        <!-- Favoris -->
+        <section id="tab-favs" class="tabpane hidden">
+          <p id="favs-info" class="lib-info"></p>
+          <ul id="favs-list" class="lib-rows"></ul>
+        </section>
+
+        <!-- Multijoueur -->
+        <section id="tab-multi" class="tabpane hidden">
+          <div id="mp-start" class="mp-block">
+            <label for="mp-name">Pseudo</label>
+            <input id="mp-name" type="text" maxlength="16" placeholder="ton pseudo" autocomplete="off">
+            <div class="mp-actions">
+              <button id="mp-create" class="btn" type="button">Créer une room</button>
+            </div>
+            <div class="mp-join">
+              <input id="mp-code" type="text" maxlength="5" placeholder="CODE" autocomplete="off" spellcheck="false">
+              <button id="mp-join" class="btn secondary" type="button">Rejoindre</button>
+            </div>
+            <p id="mp-msg" class="mp-msg"></p>
+          </div>
+
+          <div id="mp-lobby" class="mp-block hidden">
+            <div class="mp-code-row">
+              <span>Room</span> <b id="mp-room-code" class="mp-code"></b>
+              <button id="mp-copy" class="btn secondary mini2" type="button">Copier le lien</button>
+            </div>
+
+            <h3>Joueurs <span id="mp-count"></span></h3>
+            <ul id="mp-players" class="mp-players"></ul>
+
+            <!-- Réglages (modifiables par l'hôte avant le lancement) -->
+            <div id="mp-settings" class="mp-settings">
+              <h3>Réglages des openings</h3>
+              <div class="mp-row">
+                <span class="mp-label">Difficultés</span>
+                <label class="mp-check"><input id="mp-lvl-easy" type="checkbox" checked> Facile</label>
+                <label class="mp-check"><input id="mp-lvl-medium" type="checkbox" checked> Moyen</label>
+                <label class="mp-check"><input id="mp-lvl-hard" type="checkbox" checked> Difficile</label>
+              </div>
+              <div class="mp-row">
+                <label class="mp-label" for="mp-rounds">Nombre d'openings</label>
+                <input id="mp-rounds" type="number" min="1" max="100" step="1" value="10" inputmode="numeric">
+                <small>(1 à 100)</small>
+              </div>
+              <div class="mp-row">
+                <label class="mp-label" for="mp-length">Durée de l'extrait</label>
+                <input id="mp-length" type="number" min="0.1" max="20" step="0.1" value="5" inputmode="decimal">
+                <small>secondes (0,1 à 20)</small>
+              </div>
+              <div class="mp-row">
+                <label class="mp-label" for="mp-year-min">Années</label>
+                <input id="mp-year-min" type="number" min="1960" max="2100" step="1" placeholder="de" inputmode="numeric">
+                <input id="mp-year-max" type="number" min="1960" max="2100" step="1" placeholder="à" inputmode="numeric">
+                <small>(facultatif)</small>
+              </div>
+              <div class="mp-row">
+                <span class="mp-label">Indices</span>
+                <label class="mp-check"><input id="mp-hints" type="checkbox" checked> Autorisés (opening entier, initiales)</label>
+              </div>
+            </div>
+            <p id="mp-summary" class="mp-summary hidden"></p>
+            <p id="mp-wait-host" class="mp-wait hidden">En attente du lancement par l'hôte…</p>
+
+            <div class="mp-actions">
+              <button id="mp-begin" class="btn big" type="button">Lancer la partie</button>
+              <button id="mp-leave" class="btn secondary" type="button">Quitter la room</button>
+            </div>
+            <p id="mp-lobby-msg" class="mp-msg"></p>
+          </div>
+        </section>
+
+      </div>
+    </div>
+  </div>
+
   <script src="js/animes.js"></script>
   <script src="js/app.js"></script>
+  <script src="js/library.js"></script>
+  <script src="js/multi.js"></script>
   <script src="js/fx.js"></script>
 </body>
 </html>

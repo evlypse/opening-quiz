@@ -71,9 +71,9 @@ const ANIMES = (() => {
     E("Frieren: Beyond Journey's End", "sousou_no_frieren", { aliases: ["Sousou no Frieren", "Frieren"] }),
     E("Solo Leveling", "ore_dake_level_up_na_ken", { aliases: ["Ore dake Level Up na Ken"] }),
     E("Dandadan", "dandadan"),
-    E("Pokémon", "pokemon", { ...P, aliases: ["Pokemon"] }),
-    E("Digimon Adventure", "digimon_adventure", { ...P, ...K }),
-    E("Detective Conan", "meitantei_conan", { aliases: ["Case Closed", "Meitantei Conan"] }),
+    M("Pokémon", "pokemon", { ...P, ops: { 1: "easy" }, aliases: ["Pokemon"] }),
+    M("Digimon Adventure", "digimon_adventure", { ...P, ...K, ops: { 1: "easy" } }),
+    M("Detective Conan", "meitantei_conan", { aliases: ["Case Closed", "Meitantei Conan"] }),
     E("JoJo's Bizarre Adventure", "jojo_no_kimyou_na_bouken", { ...P, aliases: ["JoJo", "Jojo no Kimyou na Bouken"] }),
     E("Inuyasha", "inuyasha"),
     E("Gintama", "gintama", P),
@@ -104,7 +104,7 @@ const ANIMES = (() => {
     E("Darling in the Franxx", "darling_in_the_franxx", { aliases: ["DARLING in the FRANXX"] }),
     E("Parasyte: The Maxim", "kiseijuu_sei_no_kakuritsu", { aliases: ["Kiseijuu", "Parasyte"] }),
     E("Akame ga Kill!", "akame_ga_kill", { aliases: ["Akame ga Kill"] }),
-    E("Initial D", "initial_d_first_stage", { ...P, ...K, query: "initial d", aliases: ["Initial D First Stage"] }),
+    M("Initial D", "initial_d_first_stage", { ...P, ...K, query: "initial d", aliases: ["Initial D First Stage"] }),
     E("Noragami", "noragami", P),
 
     /* ================= MOYEN ================= */
