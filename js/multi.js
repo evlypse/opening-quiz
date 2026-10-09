@@ -28,6 +28,7 @@
     debug: 0,
     config: { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }, { urls: 'stun:global.stun.twilio.com:3478' }] }
   };
+  const POINTS = [3, 2, 1];
   const VERDICT_LABEL = { correct: 'Correct', presque: 'Presque', faux: 'Faux', gaveup: 'Abandon' };
   const LEVEL_LABEL = { easy: 'Facile', medium: 'Moyen', hard: 'Difficile' };
 
@@ -48,7 +49,7 @@
   };
 
   function defaultSettings() {
-    return { levels: ['easy', 'medium', 'hard'], rounds: 10, length: 5, yearMin: null, yearMax: null, hints: true };
+    return { levels: ['easy', 'medium', 'hard'], rounds: 10, length: 5, yearMin: null, yearMax: null, hints: true, guessNumber: true };
   }
 
   /* ------------------------------------------------------------------
@@ -115,7 +116,8 @@
     return {
       levels: levels.length ? levels : ['easy', 'medium', 'hard'],
       rounds, length, yearMin, yearMax,
-      hints: !!$('mp-hints').checked
+      hints: !!$('mp-hints').checked,
+      guessNumber: !!$('mp-number').checked
     };
   }
 
@@ -126,6 +128,7 @@
     $('mp-year-min').value = s.yearMin ? String(s.yearMin) : '';
     $('mp-year-max').value = s.yearMax ? String(s.yearMax) : '';
     $('mp-hints').checked = !!s.hints;
+    $('mp-number').checked = s.guessNumber !== false;
   }
 
   function summary(s) {
@@ -133,7 +136,8 @@
     return 'Difficultés : ' + s.levels.map((l) => LEVEL_LABEL[l]).join(', ')
       + ' · ' + s.rounds + ' opening' + (s.rounds > 1 ? 's' : '')
       + ' · extrait ' + String(s.length).replace('.', ',') + ' s' + years
-      + ' · indices ' + (s.hints ? 'autorisés' : 'désactivés');
+      + ' · ' + (s.guessNumber === false ? 'anime seulement' : 'anime + numéro')
+      + ' · indices ' + (s.hints ? 'autorisés (3 pts sans indice, 2 avec l\'opening entier, 1 avec les initiales)' : 'désactivés (3 pts par bonne réponse)');
   }
 
   /* ------------------------------------------------------------------
@@ -209,6 +213,12 @@
         v.textContent = VERDICT_LABEL[r.verdict] || r.verdict;
         li.appendChild(v);
       }
+      if (typeof r.pts === 'number') {
+        const gain = document.createElement('span');
+        gain.className = 'sb-pts';
+        gain.textContent = r.pts ? '+' + r.pts + (r.hints ? ' (indice)' : '') : '';
+        li.appendChild(gain);
+      }
       const sc = document.createElement('b');
       sc.className = 'sb-score';
       sc.textContent = r.score + ' pt' + (r.score > 1 ? 's' : '');
@@ -225,6 +235,8 @@
     OQ.enterMulti(S.settings);
     OQ.mp.onAnswer = onLocalAnswer;
     OQ.mp.onNext = onLocalNext;
+    // L'hôte prépare déjà l'opening suivant : les invités peuvent charger la musique en avance
+    OQ.mp.onPrefetched = S.role === 'host' ? (info) => broadcast({ t: 'preload', url: info.url }) : null;
     OQ.panel.close();
     renderBar();
   }
@@ -315,7 +327,10 @@
       broadcastLobby();
     } else if (msg.t === 'answered') {
       if (S.phase !== 'playing' || !S.players.has(conn.peer)) return;
-      S.answers.set(conn.peer, VERDICT_LABEL[msg.verdict] ? msg.verdict : 'faux');
+      S.answers.set(conn.peer, {
+        verdict: VERDICT_LABEL[msg.verdict] ? msg.verdict : 'faux',
+        hints: Math.min(2, Math.max(0, parseInt(msg.hints, 10) || 0))
+      });
       afterAnswer();
     } else if (msg.t === 'leave') {
       removePlayer(conn.peer);
@@ -368,12 +383,12 @@
     afterAnswer();                                               // met à jour le compteur (0/N)
   }
 
-  function onLocalAnswer(verdict) {
+  function onLocalAnswer(verdict, hints) {
     if (S.role === 'host') {
-      S.answers.set(S.myId, verdict);
+      S.answers.set(S.myId, { verdict, hints: hints || 0 });
       afterAnswer();
     } else if (S.role === 'guest') {
-      safeSend(S.hostConn, { t: 'answered', verdict });
+      safeSend(S.hostConn, { t: 'answered', verdict, hints: hints || 0 });
     }
   }
 
@@ -396,9 +411,11 @@
     S.phase = 'reveal';
     const results = [];
     S.players.forEach((p) => {
-      const verdict = S.answers.get(p.id) || 'gaveup';
-      if (verdict === 'correct') p.score++;
-      results.push({ id: p.id, name: p.name, verdict, score: p.score });
+      const a = S.answers.get(p.id) || { verdict: 'gaveup', hints: 0 };
+      // Les indices rapportent moins de points : 3 sans indice, 2 avec l'opening entier, 1 avec les initiales
+      const pts = a.verdict === 'correct' ? POINTS[a.hints] : 0;
+      p.score += pts;
+      results.push({ id: p.id, name: p.name, verdict: a.verdict, hints: a.hints, pts, score: p.score });
     });
     const last = S.n >= S.total;
     broadcast({ t: 'reveal', n: S.n, total: S.total, results, last });
@@ -548,6 +565,9 @@
       case 'end':
         applyEnd(msg.ranking);
         break;
+      case 'preload':
+        if (typeof msg.url === 'string') OQ.preloadAudio(msg.url);
+        break;
       case 'error':
         leaveGame(msg.msg || 'La partie a été interrompue.');
         break;
@@ -558,7 +578,9 @@
   /* ------------------------------------------------------------------
    * Boutons et formulaire
    * ------------------------------------------------------------------ */
-  $('mp-name').value = store.get('opening-quiz-name', '');
+  const defaultName = () => store.get('opening-quiz-name', '') || (OQ.lists && OQ.lists.accountName()) || '';
+  $('mp-name').value = defaultName();
+  document.addEventListener('oq:tab', (e) => { if (e.detail === 'multi' && !$('mp-name').value) $('mp-name').value = defaultName(); });
   writeSettings(S.settings);
 
   $('mp-create').addEventListener('click', createRoom);

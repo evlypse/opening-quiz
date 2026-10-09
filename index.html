@@ -5,6 +5,10 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#f4f4f8">
   <title>Devine l'opening</title>
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <link rel="icon" href="favicon-32.png" sizes="32x32" type="image/png">
+  <link rel="apple-touch-icon" href="apple-touch-icon.png">
+  <link rel="manifest" href="site.webmanifest">
   <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
@@ -36,8 +40,9 @@
           <h3>Jouer</h3>
           <ul>
             <li>Un extrait d'opening est joué à un <b>moment aléatoire</b> (durée réglable : <b>0,1 à 20 s</b>).</li>
-            <li>Trouve <b>l'anime</b> et le <b>numéro de l'opening</b>, puis <b>Valider</b>. Les saisons d'un anime sont regroupées et ses openings numérotés <u>à la suite</u>. Si deux openings ont la même musique, les deux numéros sont acceptés.</li>
+            <li>Trouve <b>l'anime</b> et le <b>numéro de l'opening</b>, puis <b>Valider</b>. Les saisons d'un anime sont regroupées et ses openings numérotés <u>à la suite</u>. Deux openings qui ont la même musique sont tous les deux acceptés.</li>
             <li><b>Correct</b> = bon anime et bon numéro · <b>Presque</b> = bon anime, mauvais numéro · <b>Faux</b>. <b>Abandonner</b> montre la réponse.</li>
+            <li>Options : décocher <b>Deviner le numéro</b> pour ne trouver que l'anime ; <b>Vidéo automatique</b> lance la vidéo après chaque réponse.</li>
           </ul>
 
           <h3>Indices</h3>
@@ -48,21 +53,28 @@
           <h3>Difficultés (cumulables)</h3>
           <ul>
             <li><b>Facile</b> : <span data-count="easy">…</span> openings, les plus connus.</li>
-            <li><b>Moyen</b> : <span data-count="medium">…</span> openings, animes connus mais openings moins marquants.</li>
+            <li><b>Moyen</b> : <span data-count="medium">…</span> openings, moins marquants.</li>
             <li><b>Difficile</b> : <span data-count="hard">…</span> openings, tout le reste du catalogue.</li>
           </ul>
-          <p class="small">Classement fait à la main : époque, popularité de l'anime, notoriété de l'opening. Les openings d'avant 1996 sont rétrogradés d'un cran, sauf les plus cultes. Les nombres se calculent au premier chargement (quelques minutes).</p>
+          <p class="small">La difficulté est notée pour chaque <b>opening</b>, pas pour l'anime entier : dans une même série, certains sont faciles et d'autres difficiles. Classement fait à la main (époque, popularité de l'anime, notoriété de l'opening). Les nombres se calculent au premier chargement (quelques minutes).</p>
 
           <h3>Après la réponse</h3>
           <ul>
-            <li>Titre, couverture, sortie, genres, note et lien <b>MyAnimeList</b>, et la <b>vidéo</b> de l'opening.</li>
-            <li><b>♡ Favori</b> garde l'opening dans ta liste de favoris. La <b>Bibliothèque</b> liste tous les openings, avec recherche et difficulté.</li>
+            <li>Titre, difficulté, couverture, sortie, lien <b>MyAnimeList</b> et <b>vidéo</b> de l'opening.</li>
+            <li><b>＋ Ajouter à une liste</b> range l'opening dans une ou plusieurs de tes listes.</li>
+          </ul>
+
+          <h3>Listes, compte, bibliothèque</h3>
+          <ul>
+            <li><b>Listes</b> : crée autant de listes que tu veux. <b>Compte</b> : chaque compte a ses propres listes (enregistrées sur cet appareil ; exporte-les pour les retrouver ailleurs).</li>
+            <li><b>Bibliothèque</b> : tous les openings, avec recherche et difficulté.</li>
           </ul>
 
           <h3>Multijoueur</h3>
           <ul>
-            <li>Crée une room et partage le <b>code</b> (ou le lien). L'hôte règle tout : difficultés, de <b>1 à 100</b> openings, durée de l'extrait, années, indices.</li>
-            <li>Tout le monde entend le même extrait. L'opening n'est révélé que quand <b>tous</b> les joueurs ont validé ou abandonné. 1 point par <b>Correct</b>.</li>
+            <li>Crée une room et partage le <b>code</b> (ou le lien). L'hôte règle tout : difficultés, de <b>1 à 100</b> openings, durée, années, indices, numéro à deviner ou non.</li>
+            <li>Tout le monde entend le même extrait. L'opening n'est révélé que quand <b>tous</b> ont validé ou abandonné.</li>
+            <li><b>3 points</b> par bonne réponse sans indice, <b>2</b> avec l'opening entier, <b>1</b> avec les initiales.</li>
           </ul>
 
           <h3>Crédits</h3>
@@ -73,11 +85,12 @@
     </div>
   </header>
 
-  <!-- Bibliothèque / Favoris / Multijoueur -->
+  <!-- Bibliothèque / Listes / Multijoueur / Compte -->
   <nav class="nav" aria-label="Menu">
     <button id="nav-library" class="btn secondary" type="button">Bibliothèque</button>
-    <button id="nav-favs" class="btn secondary" type="button">♥ Favoris</button>
+    <button id="nav-lists" class="btn secondary" type="button">Listes</button>
     <button id="nav-multi" class="btn secondary" type="button">Multijoueur</button>
+    <button id="nav-account" class="btn secondary" type="button">👤 Compte</button>
   </nav>
 
   <main>
@@ -138,6 +151,12 @@
     <!-- Réponse -->
     <section class="card">
       <form id="answer-form" autocomplete="off">
+        <!-- Options -->
+        <div class="options">
+          <label class="opt"><input id="opt-number" type="checkbox" checked> Deviner le numéro d'opening</label>
+          <label class="opt"><input id="opt-autovideo" type="checkbox" checked> Vidéo automatique</label>
+        </div>
+
         <div class="answer-row">
           <div class="field grow">
             <label for="anime-input">Anime</label>
@@ -149,7 +168,7 @@
             </div>
           </div>
 
-          <div class="field num">
+          <div id="num-field" class="field num">
             <label for="opening-input">N°</label>
             <input id="opening-input" type="number" min="1" step="1" value="1" inputmode="numeric">
           </div>
@@ -176,7 +195,7 @@
 
       <div class="result-actions">
         <a id="res-mal" class="btn secondary hidden" target="_blank" rel="noopener noreferrer">Fiche MyAnimeList ↗</a>
-        <button id="fav-btn" class="btn secondary heart hidden" type="button" aria-pressed="false" title="Ajouter aux favoris">♡ Favori</button>
+        <button id="list-btn" class="btn secondary listbtn hidden" type="button">＋ Ajouter à une liste</button>
         <button id="res-video-btn" class="btn secondary hidden" type="button">▶ Voir l'opening</button>
       </div>
 
@@ -203,14 +222,31 @@
     <p class="foot-credits">Musiques et vidéos : <a href="https://animethemes.moe" target="_blank" rel="noopener noreferrer">AnimeThemes</a> · Fiches : <a href="https://myanimelist.net" target="_blank" rel="noopener noreferrer">MyAnimeList</a></p>
   </footer>
 
-  <!-- Panneau : bibliothèque, favoris, multijoueur -->
+  <!-- Fenêtre « Ajouter à une liste » -->
+  <div id="picker" class="picker hidden" role="dialog" aria-modal="true" aria-label="Ajouter à une liste">
+    <div class="picker-box">
+      <h3>Ajouter à une liste</h3>
+      <p id="picker-entry" class="picker-entry"></p>
+      <ul id="picker-lists" class="picker-lists"></ul>
+      <div class="picker-new">
+        <input id="picker-new" type="text" maxlength="30" placeholder="nouvelle liste…" autocomplete="off">
+        <button id="picker-create" class="btn" type="button">Créer</button>
+      </div>
+      <div class="picker-actions">
+        <button id="picker-close" class="btn secondary" type="button">Fermer</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Panneau : bibliothèque, listes, multijoueur, compte -->
   <div id="panel" class="panel hidden" role="dialog" aria-modal="true" aria-label="Menu">
     <div class="panel-box">
       <div class="panel-head">
         <div class="tabs" role="tablist">
           <button class="tab active" type="button" data-tab="library">Bibliothèque</button>
-          <button class="tab" type="button" data-tab="favs">Favoris</button>
+          <button class="tab" type="button" data-tab="lists">Listes</button>
           <button class="tab" type="button" data-tab="multi">Multijoueur</button>
+          <button class="tab" type="button" data-tab="account">Compte</button>
         </div>
         <button id="panel-close" class="btn secondary square" type="button" aria-label="Fermer">✕</button>
       </div>
@@ -229,10 +265,19 @@
           <div id="lib-list" class="lib-list"></div>
         </section>
 
-        <!-- Favoris -->
-        <section id="tab-favs" class="tabpane hidden">
-          <p id="favs-info" class="lib-info"></p>
-          <ul id="favs-list" class="lib-rows"></ul>
+        <!-- Listes -->
+        <section id="tab-lists" class="tabpane hidden">
+          <div class="lists-bar">
+            <select id="lists-select" aria-label="Choisir une liste"></select>
+            <button id="lists-rename" class="btn secondary mini2" type="button">Renommer</button>
+            <button id="lists-delete" class="btn secondary mini2" type="button">Supprimer</button>
+          </div>
+          <div class="lists-new">
+            <input id="lists-new" type="text" maxlength="30" placeholder="nouvelle liste…" autocomplete="off">
+            <button id="lists-create" class="btn" type="button">Créer une liste</button>
+          </div>
+          <p id="lists-info" class="lib-info"></p>
+          <ul id="lists-rows" class="lib-rows"></ul>
         </section>
 
         <!-- Multijoueur -->
@@ -285,8 +330,12 @@
                 <small>(facultatif)</small>
               </div>
               <div class="mp-row">
+                <span class="mp-label">À deviner</span>
+                <label class="mp-check"><input id="mp-number" type="checkbox" checked> Le numéro de l'opening (sinon, seulement l'anime)</label>
+              </div>
+              <div class="mp-row">
                 <span class="mp-label">Indices</span>
-                <label class="mp-check"><input id="mp-hints" type="checkbox" checked> Autorisés (opening entier, initiales)</label>
+                <label class="mp-check"><input id="mp-hints" type="checkbox" checked> Autorisés (ils rapportent moins de points)</label>
               </div>
             </div>
             <p id="mp-summary" class="mp-summary hidden"></p>
@@ -300,12 +349,52 @@
           </div>
         </section>
 
+        <!-- Compte -->
+        <section id="tab-account" class="tabpane hidden">
+          <p id="acc-current" class="acc-current"></p>
+          <p class="acc-note">Les comptes sont enregistrés dans ce navigateur (il n'y a pas de serveur) : pour retrouver tes listes sur un autre appareil, exporte-les puis importe-les ici.</p>
+
+          <div id="acc-login-block" class="acc-block hidden">
+            <h3>Se connecter</h3>
+            <div class="acc-row">
+              <select id="acc-select" aria-label="Compte"></select>
+              <input id="acc-pass" type="password" placeholder="mot de passe (si besoin)" autocomplete="off">
+              <button id="acc-login" class="btn" type="button">Connexion</button>
+            </div>
+          </div>
+
+          <div class="acc-block">
+            <h3>Créer un compte</h3>
+            <div class="acc-row">
+              <input id="acc-name" type="text" maxlength="30" placeholder="pseudo" autocomplete="off">
+              <input id="acc-newpass" type="password" placeholder="mot de passe (facultatif)" autocomplete="off">
+              <button id="acc-create" class="btn" type="button">Créer</button>
+            </div>
+            <label id="acc-keep-row" class="mp-check"><input id="acc-keep" type="checkbox" checked> Garder mes listes actuelles (mode invité) dans ce compte</label>
+          </div>
+
+          <div class="acc-block">
+            <h3>Sauvegarde</h3>
+            <div class="acc-row">
+              <button id="acc-export" class="btn secondary" type="button">Exporter mes listes</button>
+              <label class="btn secondary file-btn">Importer<input id="acc-import" type="file" accept="application/json,.json" hidden></label>
+            </div>
+          </div>
+
+          <div class="acc-row acc-end">
+            <button id="acc-logout" class="btn secondary hidden" type="button">Se déconnecter</button>
+            <button id="acc-delete" class="btn secondary hidden" type="button">Supprimer ce compte</button>
+          </div>
+          <p id="acc-msg" class="mp-msg"></p>
+        </section>
+
       </div>
     </div>
   </div>
 
   <script src="js/animes.js"></script>
   <script src="js/app.js"></script>
+  <script src="js/lists.js"></script>
   <script src="js/library.js"></script>
   <script src="js/multi.js"></script>
   <script src="js/fx.js"></script>

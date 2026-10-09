@@ -1,11 +1,11 @@
 /*
- * BIBLIOTHÈQUE + FAVORIS
+ * BIBLIOTHÈQUE + PANNEAU
  * ----------------------
+ * - Le panneau (onglets Bibliothèque / Listes / Multijoueur / Compte) s'ouvre depuis le menu.
  * - Bibliothèque : tous les openings possibles. Sans recherche, on parcourt les animes "faciles"
  *   et "moyens" ; en tapant un nom, on cherche dans TOUT le catalogue (openings difficiles compris).
- *   Chaque opening affiche son numéro, sa musique, sa date et sa difficulté.
- * - Favoris : les openings marqués d'un cœur à la fin d'un round (ou ici).
- * Ce fichier a besoin de js/app.js (objet window.OQ).
+ *   La difficulté est indiquée sur chaque OPENING (pas sur le nom de l'anime).
+ * Ce fichier a besoin de js/app.js et js/lists.js (objet window.OQ).
  */
 (() => {
   'use strict';
@@ -14,7 +14,7 @@
   if (!OQ) return;
 
   const $ = (id) => document.getElementById(id);
-  const TIER_LABEL = { easy: 'Facile', medium: 'Moyen', hard: 'Difficile' };
+  const TIER_LABEL = OQ.TIER_LABEL;
   const SEARCH_DELAY = 300;
 
   function el(tag, cls, text) {
@@ -37,7 +37,6 @@
     tabBtns.forEach((b) => b.classList.toggle('active', b.dataset.tab === name));
     panes.forEach((p) => p.classList.toggle('hidden', p.id !== 'tab-' + name));
     if (name === 'library') initLibrary();
-    if (name === 'favs') renderFavs();
     document.dispatchEvent(new CustomEvent('oq:tab', { detail: name }));
   }
 
@@ -58,15 +57,16 @@
   $('panel-close').addEventListener('click', () => OQ.panel.close());
   panel.addEventListener('click', (e) => { if (e.target === panel) OQ.panel.close(); });
   document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape' && !panel.classList.contains('hidden')) OQ.panel.close();
+    if (e.key === 'Escape' && !panel.classList.contains('hidden') && $('picker').classList.contains('hidden')) OQ.panel.close();
   });
 
   $('nav-library').addEventListener('click', () => OQ.panel.open('library'));
-  $('nav-favs').addEventListener('click', () => OQ.panel.open('favs'));
+  $('nav-lists').addEventListener('click', () => OQ.panel.open('lists'));
   $('nav-multi').addEventListener('click', () => OQ.panel.open('multi'));
+  $('nav-account').addEventListener('click', () => OQ.panel.open('account'));
 
   /* ------------------------------------------------------------------
-   * Écoute d'un extrait (bibliothèque et favoris)
+   * Écoute d'un extrait (bibliothèque et listes)
    * ------------------------------------------------------------------ */
   const pAudio = new Audio();
   let pBtn = null;
@@ -100,20 +100,25 @@
       if (pBtn === btn) { btn.textContent = '✕'; pBtn = null; }
     }
   }
+  OQ.preview = { toggle: togglePreview, stop: stopPreview };
 
   /* ------------------------------------------------------------------
    * Lignes d'opening
    * ------------------------------------------------------------------ */
+  let listSyncs = [];                           // pour mettre à jour les boutons « ajouter à une liste »
+  OQ.lists.subscribe(() => listSyncs.forEach((fn) => fn()));
+
   function renderRow(row) {
     const li = el('li', 'lib-row');
     li.appendChild(el('span', 'lib-num', '#' + row.number));
 
     const info = el('div', 'lib-song');
     info.appendChild(el('b', '', row.songTitle || 'Titre inconnu'));
-    const meta = [row.artists.join(', '), OQ.fmtDate(row.season, row.year)].filter(Boolean).join(' · ');
+    const meta = [row.artists.join(', '), OQ.fmtDate(row.season, row.year), row.entry].filter(Boolean).join(' · ');
     if (meta) info.appendChild(el('small', '', meta));
     li.appendChild(info);
 
+    // La difficulté est affichée sur l'opening
     li.appendChild(el('span', 'pill ' + row.tier, TIER_LABEL[row.tier]));
 
     const play = el('button', 'btn secondary mini', '▶');
@@ -122,26 +127,24 @@
     play.addEventListener('click', () => togglePreview(play, row.themeId, row.audio));
     li.appendChild(play);
 
-    if (row.id !== undefined) {
-      const heart = el('button', 'btn secondary mini heart-mini');
-      heart.type = 'button';
-      const sync = () => {
-        const on = OQ.favs.has(row.themeId);
-        heart.textContent = on ? '♥' : '♡';
-        heart.classList.toggle('on', on);
-        heart.title = on ? 'Retirer des favoris' : 'Ajouter aux favoris';
-      };
-      sync();
-      heart.addEventListener('click', () => {
-        OQ.favs.toggle({
-          id: row.themeId, title: row.title, number: row.number, songTitle: row.songTitle,
-          artists: row.artists, year: row.year, season: row.season, slug: row.slug, tier: row.tier,
-          mal: '', cover: '', audio: '', video: ''
-        });
-        sync();
+    const add = el('button', 'btn secondary mini');
+    add.type = 'button';
+    const sync = () => {
+      const n = OQ.lists.countFor(row.themeId);
+      add.textContent = n ? '✓' : '＋';
+      add.classList.toggle('on', n > 0);
+      add.title = n ? 'Dans ' + n + ' liste(s) : modifier' : 'Ajouter à une liste';
+    };
+    sync();
+    listSyncs.push(sync);
+    add.addEventListener('click', () => {
+      OQ.lists.openPicker({
+        id: row.themeId, title: row.title, number: row.number, songTitle: row.songTitle,
+        artists: row.artists, year: row.year, season: row.season, slug: row.slug, tier: row.tier,
+        mal: '', cover: '', audio: '', video: ''
       });
-      li.appendChild(heart);
-    }
+    });
+    li.appendChild(add);
     return li;
   }
 
@@ -149,11 +152,11 @@
   function buildRows(members, anchorSlug, f, title) {
     const byTheme = new Map();
     members.forEach((m) => m.themes.forEach((t) => byTheme.set(t.id, { t, m })));
+    const anchor = members.find((m) => m.slug === anchorSlug);
     return OQ.computeOps(members, anchorSlug).map((op) => {
       const ref = byTheme.get(op.themeId);
       const song = ref && ref.t.song;
       return {
-        id: op.themeId,
         themeId: op.themeId,
         number: op.number,
         title,
@@ -162,6 +165,8 @@
         year: op.year,
         season: ref ? ref.m.season : '',
         slug: ref ? ref.m.slug : '',
+        // l'entrée d'origine, quand ce n'est pas l'anime de départ (utile pour repérer une erreur)
+        entry: ref && anchor && ref.m.slug !== anchor.slug ? ref.m.name : '',
         tier: f ? OQ.opTier(f, op) : 'hard'
       };
     });
@@ -206,15 +211,14 @@
     else browseCurated();
   }
 
-  // Sans recherche : la liste des animes faciles / moyens
+  // Sans recherche : la liste des animes faciles / moyens (sans étiquette de difficulté sur les animes)
   function browseCurated() {
     libSeq++;
     libList.textContent = '';
+    listSyncs = [];
     const list = OQ.ANIMES
       .filter((f) => !f._dead)
-      .filter((f) => activeTiers.has(f.tier)
-        || (!f.keep && f.tier === 'easy' && activeTiers.has('medium'))
-        || Object.values(f.ops || {}).some((t) => activeTiers.has(t)))
+      .filter((f) => Array.from(OQ.tierSet(f)).some((t) => activeTiers.has(t)))
       .slice()
       .sort((a, b) => a.title.localeCompare(b.title));
 
@@ -226,7 +230,6 @@
       const d = el('details', 'lib-item');
       const s = el('summary');
       s.appendChild(el('span', 'lib-title', f.title));
-      s.appendChild(el('span', 'pill ' + f.tier, TIER_LABEL[f.tier]));
       d.appendChild(s);
       const body = el('ul', 'lib-rows');
       d.appendChild(body);
@@ -256,6 +259,7 @@
     const res = await OQ.fetchVariants('lib', '/anime', { q, 'filter[has]': 'animethemes', 'page[size]': 30 });
     if (!res || !res.ok) throw new Error('HTTP');
     const list = ((await res.json()).anime || []).map(OQ.entryInfo);
+    OQ.indexEntries(list);
     const anchor = list.find((e) => e.slug === f.slug)
       || list.find((e) => f.keys.includes(OQ.keyOf(e.name)) && !OQ.BAD_FORMATS.has(e.format))
       || list.find((e) => f.keys.includes(OQ.keyOf(e.name)));
@@ -270,6 +274,7 @@
   async function searchCatalog(query) {
     const seq = ++libSeq;
     libList.textContent = '';
+    listSyncs = [];
     libInfo.textContent = 'Recherche…';
     try {
       let res = await OQ.fetchVariants('lib', '/anime', { q: query, 'filter[has]': 'animethemes', 'page[size]': 20 });
@@ -279,6 +284,7 @@
       if (seq !== libSeq) return;
       if (!res || !res.ok) throw new Error('HTTP');
       const entries = ((await res.json()).anime || []).map(OQ.entryInfo);
+      OQ.indexEntries(entries);
 
       const groups = new Map();
       entries.forEach((e) => {
@@ -317,75 +323,4 @@
       libInfo.textContent = 'Recherche impossible pour le moment (connexion ?).';
     }
   }
-
-  /* ------------------------------------------------------------------
-   * Favoris
-   * ------------------------------------------------------------------ */
-  const favsList = $('favs-list');
-  const favsInfo = $('favs-info');
-  const navFavs = $('nav-favs');
-
-  function updateNavCount() {
-    const n = OQ.favs.list().length;
-    navFavs.textContent = '♥ Favoris' + (n ? ' (' + n + ')' : '');
-  }
-
-  function renderFavs() {
-    favsList.textContent = '';
-    const list = OQ.favs.list();
-    favsInfo.textContent = list.length
-      ? list.length + ' opening' + (list.length > 1 ? 's' : '') + ' en favori'
-      : 'Aucun favori pour l\'instant. Clique sur le cœur après avoir répondu à un opening, ou dans la bibliothèque.';
-
-    list.forEach((fav) => {
-      const li = el('li', 'lib-row fav-row');
-      li.appendChild(el('span', 'lib-num', '#' + fav.number));
-
-      const info = el('div', 'lib-song');
-      info.appendChild(el('b', '', fav.title));
-      const meta = [fav.songTitle, (fav.artists || []).join(', '), OQ.fmtDate(fav.season, fav.year)]
-        .filter(Boolean).join(' · ');
-      if (meta) info.appendChild(el('small', '', meta));
-      li.appendChild(info);
-
-      if (fav.tier) li.appendChild(el('span', 'pill ' + fav.tier, TIER_LABEL[fav.tier]));
-
-      const play = el('button', 'btn secondary mini', '▶');
-      play.type = 'button';
-      play.title = 'Écouter';
-      play.addEventListener('click', () => togglePreview(play, fav.id, fav.audio));
-      li.appendChild(play);
-
-      if (fav.video) {
-        const v = el('a', 'btn secondary mini', '🎬');
-        v.href = fav.video;
-        v.target = '_blank';
-        v.rel = 'noopener noreferrer';
-        v.title = 'Voir la vidéo';
-        li.appendChild(v);
-      }
-      if (fav.mal) {
-        const m = el('a', 'btn secondary mini', 'MAL');
-        m.href = fav.mal;
-        m.target = '_blank';
-        m.rel = 'noopener noreferrer';
-        m.title = 'Fiche MyAnimeList';
-        li.appendChild(m);
-      }
-
-      const rm = el('button', 'btn secondary mini heart-mini on', '♥');
-      rm.type = 'button';
-      rm.title = 'Retirer des favoris';
-      rm.addEventListener('click', () => { OQ.favs.remove(fav.id); });
-      li.appendChild(rm);
-
-      favsList.appendChild(li);
-    });
-  }
-
-  OQ.favs.subscribe(() => {
-    updateNavCount();
-    if (currentTab === 'favs' && !panel.classList.contains('hidden')) renderFavs();
-  });
-  updateNavCount();
 })();

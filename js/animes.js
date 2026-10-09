@@ -21,6 +21,12 @@
  * Les numéros d'opening sont continus d'une saison à l'autre : le premier opening de la
  * saison 2 prend le numéro qui suit le dernier de la saison 1.
  *
+ * DIFFICULTÉ DE CHAQUE OPENING (voir aussi le tableau SONGS en bas du fichier) :
+ *   1. ops   : { 13: "easy" } réglage par numéro d'opening (numéros à la suite sur toutes les saisons)
+ *   2. SONGS : réglage par titre de musique (plus fiable que le numéro)
+ *   3. sinon règle automatique : le 1er opening de chaque saison garde la difficulté de l'anime,
+ *      les openings 2 à 5 d'une saison sont un cran plus difficiles, les suivants deux crans.
+ *
  * Le classement est un choix humain (époque, popularité de l'anime, notoriété et caractère
  * marquant de l'opening). Rien ne le mesure automatiquement : modifie-le comme tu veux.
  */
@@ -32,7 +38,7 @@ const ANIMES = (() => {
 
   return [
     /* ================= FACILE ================= */
-    E("Bleach", "bleach", { ops: { 4: "medium", 5: "medium", 6: "hard", 7: "hard", 8: "medium", 9: "medium", 10: "hard", 11: "medium", 12: "medium", 14: "medium" } }),
+    E("Bleach", "bleach", { ops: { 1: "easy", 2: "easy", 3: "easy", 4: "medium", 5: "medium", 6: "hard", 7: "hard", 8: "medium", 9: "medium", 10: "hard", 11: "medium", 12: "medium", 13: "easy", 14: "medium" } }),
     E("Bleach: Thousand-Year Blood War", "bleach_sennen_kessen_hen", { aliases: ["Bleach TYBW"] }),
     E("Naruto", "naruto"),
     E("Naruto Shippuden", "naruto_shippuuden", { aliases: ["Naruto Shippuuden"] }),
@@ -229,3 +235,109 @@ const ANIMES = (() => {
     M("Mobile Suit Gundam: Iron-Blooded Orphans", "kidou_senshi_gundam_tekketsu_no_orphans", { ...P, aliases: ["Gundam IBO"] })
   ];
 })();
+
+
+/*
+ * DIFFICULTÉ PAR MUSIQUE
+ * ----------------------
+ * Pour un anime (repéré par son slug), on liste les titres de musiques :
+ *   S("faciles ; séparées ; par des points-virgules", "moyennes", "difficiles")
+ * La comparaison ignore majuscules, accents et ponctuation, et accepte un titre partiel.
+ * Une musique absente de la liste suit la règle automatique décrite en haut du fichier.
+ * Un anime classé "moyen" peut très bien avoir quelques openings "faciles" (ex. Bakemonogatari).
+ */
+const S = (easy, medium, hard) => ({ easy: easy || '', medium: medium || '', hard: hard || '' });
+
+const SONGS = {
+  // ----- Shonen et grands classiques -----
+  naruto: S("R★O★C★K★S; Haruka Kanata; GO!!!", "Kanashimi wo Yasashisa ni; Seishun Kyousoukyoku"),
+  naruto_shippuuden: S("Hero's Come Back!!; Distance; Blue Bird; Closer; Sign; Diver; Lovers; Blood Circulator; Silhouette", "Newsong; Kaze"),
+  one_piece: S("We Are!; Believe; Hikari e; Bon Voyage!; Kokoro no Chizu; Brand New World; Fight Together; Hands Up!; Hard Knock Days; We Go!; Wake up!; Super Powers", "Share the World; Jungle P; Dreamin' On; One Day; Faith; Fish; Shining Ray; Paint"),
+  dragon_ball: S("Makafushigi Adventure!"),
+  dragon_ball_z: S("Cha-La Head-Cha-La; We Gotta Power"),
+  dragon_ball_gt: S("Dan Dan Kokoro Hikarete ku"),
+  dragon_ball_kai: S("Dragon Soul"),
+  dragon_ball_super: S("Chozetsu Dynamic!; Limit-Break x Survivor"),
+  hunter_x_hunter_2011: S("Departure!", "Just Awake; Hyori Ittai"),
+  death_note: S("the WORLD", "What's up, people?!"),
+  fullmetal_alchemist: S("Melissa; Ready, Steady, Go; Rewrite", "Undo"),
+  fullmetal_alchemist_brotherhood: S("Again; Period; Golden Time Lover; Hologram", "Rain"),
+  shingeki_no_kyojin: S("Guren no Yumiya; Jiyuu no Tsubasa; Shinzou wo Sasageyo; Red Swan; My War; The Rumbling", "Shoukei to Shikabane no Michi"),
+  kimetsu_no_yaiba: S("Gurenge; Zankyou Sanka; Akeboshi", "Kizuna no Kiseki; Mugen"),
+  jujutsu_kaisen: S("Kaikai Kitan; Vivid Vice; Specialz; Ao no Sumika", "Where Our Blue Is"),
+  boku_no_hero_academia: S("The Day; Peace Sign; Polaris; Odd Future; Heroes", "Datte Atashi no Hero; Make my Story; No.1; Hero too"),
+  sword_art_online: S("Crossing Field; Ignite; Innocence; Catch the Moment", "Overfly; Resolution; Swordland"),
+  tokyo_ghoul: S("Unravel; Asphyxia; Katharsis", "Munou; Glassy Sky"),
+  one_punch_man: S("The Hero!! ~Ikareru Ken no Burning~", "Seijaku no Apostle"),
+  fairy_tail: S("Snow Fairy; Masayume Chasing"),
+  black_clover: S("Haruka Mirai; Black Catcher; Guess Who Is Back", "Gamushara; Grandeur"),
+  cowboy_bebop: S("Tank!"),
+  neon_genesis_evangelion: S("Zankoku na Tenshi no Thesis; Zankoku na Tenshi no Teeze; A Cruel Angel's Thesis"),
+  steins_gate: S("Hacking to the Gate", "Fatima; Sky Clad no Kansokusha"),
+  haikyuu: S("Imagination; Fly High!!; Hikari Are; Phoenix"),
+  chainsaw_man: S("Kick Back"),
+  spy_x_family: S("Mixed Nuts; Souvenir", "Kigeki; Shikisai"),
+  mob_psycho_100: S("99", "Refrain Boy"),
+  re_zero_kara_hajimeru_isekai_seikatsu: S("Redo; Paradisus-Paradoxum; Realize; Reweave", "Long Shot"),
+  kono_subarashii_sekai_ni_shukufuku_wo: S("Fantastic Dreamer; Tomorrow"),
+  dr_stone: S("Good Morning World!", "Sangenshoku"),
+  yakusoku_no_neverland: S("Touch Off"),
+  tokyo_revengers: S("Cry Baby"),
+  oshi_no_ko: S("Idol; Mephisto"),
+  bocchi_the_rock: S("Seishun Complex"),
+  sousou_no_frieren: S("Yuusha", "Anytime Anywhere"),
+  ore_dake_level_up_na_ken: S("LEveL"),
+  dandadan: S("Otonoke"),
+  pokemon: S("Mezase Pokemon Master"),
+  digimon_adventure: S("Butter-Fly"),
+  jojo_no_kimyou_na_bouken: S("Sono Chi no Sadame; Bloody Stream; Stand Proud; Fighting Gold; Traitor's Requiem; Great Days; Sono Chi no Kioku"),
+  inuyasha: S("Change the World; Grip!"),
+  vinland_saga: S("MUKANJYO", "Dark Crow"),
+  no_game_no_life: S("This game"),
+  tensei_shitara_slime_datta_ken: S("Nameless Story; Storyteller; Peacekeeper", "Meguru Mono"),
+  mushoku_tensei_isekai_ittara_honki_dasu: S("Tabi no Tochuu"),
+  cyberpunk_edgerunners: S("This Fffire"),
+  toradora: S("Pre-Parade", "Silky Heart"),
+  kaguya_sama_wa_kokurasetai: S("Love Dramatic; Chikatto Chika Chika"),
+  enen_no_shouboutai: S("Inferno", "Torch of Liberty"),
+  nanatsu_no_taizai: S("Netsujou no Spectrum", "Season"),
+  jigokuraku: S("Work"),
+  kaijuu_8_gou: S("Abyss"),
+  violet_evergarden: S("Sincerely"),
+  shigatsu_wa_kimi_no_uso: S("Hikaru Nara; Nanairo Symphony"),
+  mahou_shoujo_madoka_magica: S("Connect"),
+  overlord: S("Clattanoia; Hollow Hunger", "Voracity; Go Cry Go"),
+  suzumiya_haruhi_no_yuuutsu: S("Bouken Desho Desho?; Super Driver"),
+  bishoujo_senshi_sailor_moon: S("Moonlight Densetsu"),
+  slam_dunk: S("Kimi ga Suki da to Sakebitai; Anata dake Mitsumeteru"),
+  yuu_yuu_hakusho: S("Hohoemi no Bakudan"),
+  tengen_toppa_gurren_lagann: S("Sorairo Days", "Libera me from Hell"),
+  k_on: S("Cagayake! GIRLS; Don't say lazy"),
+  angel_beats: S("My Soul, Your Beats!"),
+  kill_la_kill: S("Before My Body Is Dry; Don't Lose Yourself"),
+  darling_in_the_franxx: S("Kiss of Death", "Torikago"),
+  kiseijuu_sei_no_kakuritsu: S("Let Me Hear"),
+  akame_ga_kill: S("Skyreach", "Liar Mask"),
+  initial_d_first_stage: S("Deja Vu; Running in the 90s"),
+  noragami: S("Kyouran Hey Kids!!", "Goya no Machiawase"),
+
+  // ----- Animes "moyens" qui ont quelques openings très connus -----
+  bakemonogatari: S("Renai Circulation", "Staple Stable"),
+  psycho_pass: S("Abnormalize", "Out of Control"),
+  death_parade: S("Flyers"),
+  boku_dake_ga_inai_machi: S("Re:Re:"),
+  yuri_on_ice: S("Yuri on Ice"),
+  made_in_abyss: S("Deep in Abyss"),
+  fate_zero: S("oath sign; to the beginning"),
+  fate_stay_night_unlimited_blade_works_2014: S("", "Brave Shine; Ideal White"),
+  elfen_lied: S("Lilium"),
+  great_teacher_onizuka: S("Driver's High"),
+  koukaku_kidoutai_stand_alone_complex: S("Inner Universe"),
+  cardcaptor_sakura: S("Catch You Catch Me", "Platinum"),
+  shaman_king_2021: S("Over Soul"),
+  soul_eater: S("Resonance", "Paper Moon"),
+  toaru_kagaku_no_railgun: S("Only My Railgun", "Level5 -judgelight-"),
+  beastars: S("Wild Side"),
+  hellsing_ultimate: S("", "Shine"),
+  ao_no_exorcist: S("", "Core Pride")
+};
