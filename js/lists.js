@@ -251,10 +251,14 @@
       play.addEventListener('click', () => OQ.preview && OQ.preview.toggle(play, it.id, it.audio));
       li.appendChild(play);
 
-      if (it.video) {
-        const v = el('a', 'btn secondary mini', '🎬');
-        v.href = it.video; v.target = '_blank'; v.rel = 'noopener noreferrer'; v.title = 'Voir la vidéo';
-        li.appendChild(v);
+      // Vidéo sous la ligne (même si l'opening a été ajouté depuis la bibliothèque, sans lien enregistré)
+      const v = el('button', 'btn secondary mini', '🎬');
+      v.type = 'button';
+      v.title = 'Voir la vidéo';
+      v.addEventListener('click', () => { if (OQ.videoToggle) OQ.videoToggle(li, v, { themeId: it.id, videoUrl: it.video }); });
+      li.appendChild(v);
+      if (OQ.challenge && OQ.challenge.button) {
+        li.appendChild(OQ.challenge.button({ id: it.id, title: it.title, number: it.number, songTitle: it.songTitle, artists: it.artists }));
       }
       if (it.mal) {
         const m = el('a', 'btn secondary mini', 'MAL');

@@ -16,6 +16,8 @@
   const $ = (id) => document.getElementById(id);
   const TIER_LABEL = OQ.TIER_LABEL;
   const SEARCH_DELAY = 300;
+  let openVideo = null;                         // vidéo actuellement ouverte sous une ligne { wrap, video, btn }
+  let videoSeq = 0;
 
   function el(tag, cls, text) {
     const e = document.createElement(tag);
@@ -34,6 +36,7 @@
 
   function showTab(name) {
     currentTab = name;
+    closeVideo();
     tabBtns.forEach((b) => b.classList.toggle('active', b.dataset.tab === name));
     panes.forEach((p) => p.classList.toggle('hidden', p.id !== 'tab-' + name));
     if (name === 'library') initLibrary();
@@ -50,6 +53,7 @@
       panel.classList.add('hidden');
       document.body.classList.remove('panel-open');
       stopPreview();
+      closeVideo();
     }
   };
 
@@ -81,6 +85,7 @@
   async function togglePreview(btn, themeId, knownUrl) {
     if (pBtn === btn) { stopPreview(); return; }
     stopPreview();
+    closeVideo();
     OQ.pauseGame();
     pBtn = btn;
     btn.textContent = '…';
@@ -101,6 +106,58 @@
     }
   }
   OQ.preview = { toggle: togglePreview, stop: stopPreview };
+
+  /* ------------------------------------------------------------------
+   * Vidéo d'un opening, sous sa ligne (bibliothèque et listes). row : { themeId, videoUrl }
+   * ------------------------------------------------------------------ */
+  function closeVideo() {
+    videoSeq++;
+    if (!openVideo) return;
+    const { wrap, video, btn } = openVideo;
+    openVideo = null;
+    try { video.pause(); video.removeAttribute('src'); video.load(); } catch (e) { /* ignoré */ }
+    wrap.remove();
+    btn.textContent = '🎬';
+    btn.classList.remove('on');
+  }
+
+  async function toggleVideo(li, btn, row) {
+    if (openVideo && openVideo.btn === btn) { closeVideo(); return; }
+    closeVideo();
+    const seq = videoSeq;
+    stopPreview();
+    OQ.pauseGame();
+    btn.textContent = '…';
+    try {
+      if (!row.videoUrl) {
+        const cand = OQ.candidateFromTheme(await OQ.fetchTheme(row.themeId));
+        row.videoUrl = cand && cand.videoUrl;
+      }
+      if (seq !== videoSeq) { btn.textContent = '🎬'; return; }        // l'utilisateur a cliqué ailleurs entre-temps
+      if (!row.videoUrl) throw new Error('pas de vidéo');
+
+      const wrap = el('div', 'lib-video');
+      const v = document.createElement('video');
+      v.controls = true;
+      v.playsInline = true;
+      v.preload = 'auto';
+      v.src = row.videoUrl;
+      v.addEventListener('play', () => { stopPreview(); OQ.pauseGame(); });
+      wrap.appendChild(v);
+      li.appendChild(wrap);
+      btn.textContent = '✕';
+      btn.classList.add('on');
+      openVideo = { wrap, video: v, btn };
+      const p = v.play();
+      if (p && p.catch) p.catch(() => { /* lecture refusée : les commandes de la vidéo restent disponibles */ });
+    } catch (err) {
+      console.warn('[Opening Quiz] Vidéo indisponible :', err);
+      btn.textContent = '🚫';
+      btn.title = 'Pas de vidéo disponible pour cet opening';
+    }
+  }
+  OQ.videoToggle = toggleVideo;
+  document.addEventListener('oq:gameaudio', () => { if (openVideo) openVideo.video.pause(); });
 
   /* ------------------------------------------------------------------
    * Lignes d'opening
@@ -126,6 +183,16 @@
     play.title = 'Écouter';
     play.addEventListener('click', () => togglePreview(play, row.themeId, row.audio));
     li.appendChild(play);
+
+    const vid = el('button', 'btn secondary mini', '🎬');
+    vid.type = 'button';
+    vid.title = 'Voir la vidéo';
+    vid.addEventListener('click', () => toggleVideo(li, vid, row));
+    li.appendChild(vid);
+
+    if (OQ.challenge && OQ.challenge.button) {
+      li.appendChild(OQ.challenge.button({ id: row.themeId, title: row.title, number: row.number, songTitle: row.songTitle, artists: row.artists }));
+    }
 
     const add = el('button', 'btn secondary mini');
     add.type = 'button';
@@ -172,6 +239,8 @@
     });
   }
 
+  OQ.buildRows = buildRows;
+
   /* ------------------------------------------------------------------
    * Bibliothèque
    * ------------------------------------------------------------------ */
@@ -206,6 +275,7 @@
   }
 
   function refreshLibrary() {
+    closeVideo();
     const q = OQ.norm(libQ.value);
     if (q.length >= 2) searchCatalog(libQ.value.trim());
     else browseCurated();

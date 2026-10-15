@@ -48,8 +48,11 @@
     progress: null         // (invité) { answered, total }
   };
 
+  let mpGenres = new Set();           // genres choisis par l'hôte (vide = aucun filtre)
+  let mpSync = null;
+
   function defaultSettings() {
-    return { levels: ['easy', 'medium', 'hard'], rounds: 10, length: 5, yearMin: null, yearMax: null, hints: true, guessNumber: true };
+    return { levels: ['easy', 'medium', 'hard'], rounds: 10, length: 5, yearMin: null, yearMax: null, hints: true, guessNumber: true, genres: [] };
   }
 
   /* ------------------------------------------------------------------
@@ -117,7 +120,8 @@
       levels: levels.length ? levels : ['easy', 'medium', 'hard'],
       rounds, length, yearMin, yearMax,
       hints: !!$('mp-hints').checked,
-      guessNumber: !!$('mp-number').checked
+      guessNumber: !!$('mp-number').checked,
+      genres: Array.from(mpGenres)
     };
   }
 
@@ -129,6 +133,8 @@
     $('mp-year-max').value = s.yearMax ? String(s.yearMax) : '';
     $('mp-hints').checked = !!s.hints;
     $('mp-number').checked = s.guessNumber !== false;
+    mpGenres = new Set(Array.isArray(s.genres) ? s.genres : []);
+    if (mpSync) mpSync();
   }
 
   function summary(s) {
@@ -136,6 +142,7 @@
     return 'Difficultés : ' + s.levels.map((l) => LEVEL_LABEL[l]).join(', ')
       + ' · ' + s.rounds + ' opening' + (s.rounds > 1 ? 's' : '')
       + ' · extrait ' + String(s.length).replace('.', ',') + ' s' + years
+      + (s.genres && s.genres.length ? ' · genres : ' + s.genres.map((g) => (OQ.genreLabel ? OQ.genreLabel(g) : g)).join(', ') : '')
       + ' · ' + (s.guessNumber === false ? 'anime seulement' : 'anime + numéro')
       + ' · indices ' + (s.hints ? 'autorisés (3 pts sans indice, 2 avec l\'opening entier, 1 avec les initiales)' : 'désactivés (3 pts par bonne réponse)');
   }
@@ -370,7 +377,7 @@
     broadcast({ t: 'loading', n: S.n, total: S.total });
     renderBar('Chargement de l\'opening ' + S.n + '/' + S.total + '…');
 
-    const info = await OQ.hostRound({ levels: S.settings.levels, yearMin: S.settings.yearMin, yearMax: S.settings.yearMax });
+    const info = await OQ.hostRound({ levels: S.settings.levels, yearMin: S.settings.yearMin, yearMax: S.settings.yearMax, genres: S.settings.genres || [] });
     if (S.role !== 'host' || S.phase !== 'loading') return;      // la room a été fermée entre-temps
     if (!info) {
       broadcast({ t: 'error', msg: 'Impossible de charger un opening : la partie est interrompue.' });
@@ -581,6 +588,13 @@
   const defaultName = () => store.get('opening-quiz-name', '') || (OQ.lists && OQ.lists.accountName()) || '';
   $('mp-name').value = defaultName();
   document.addEventListener('oq:tab', (e) => { if (e.detail === 'multi' && !$('mp-name').value) $('mp-name').value = defaultName(); });
+  if (OQ.buildGenreChips && $('mp-genres')) {
+    mpSync = OQ.buildGenreChips($('mp-genres'), () => mpGenres, (id) => {
+      if (mpGenres.has(id)) mpGenres.delete(id); else mpGenres.add(id);
+      mpSync();
+      if (S.role === 'host' && S.phase === 'lobby') { S.settings = readSettings(); broadcastLobby(); }
+    });
+  }
   writeSettings(S.settings);
 
   $('mp-create').addEventListener('click', createRoom);

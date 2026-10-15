@@ -835,3 +835,57 @@ select:focus { outline: none; border-color: var(--v500); box-shadow: 0 0 0 3px v
   .picker { align-items: flex-end; padding: 0; }
   .picker-box { width: 100%; border-radius: var(--r) var(--r) 0 0; }
 }
+
+/* ======================================================================
+   Mise à jour : vidéo du catalogue, genres, défis entre amis
+   ====================================================================== */
+
+/* Une ligne d'opening peut s'ouvrir sur une vidéo (bibliothèque et listes) */
+.lib-row { flex-wrap: wrap; }
+.lib-video { flex: 1 1 100%; margin: 6px 0 4px; }
+.lib-video video { display: block; width: 100%; max-height: 55vh; background: #000; border-radius: var(--r-s); }
+
+/* Genres */
+.genre-box { background: var(--white); border: 1px solid var(--g300); border-radius: var(--r); }
+.genre-box > summary {
+  padding: 10px 14px; cursor: pointer; list-style: none;
+  font-weight: 600; font-size: 0.9rem; color: var(--g700);
+}
+.genre-box > summary::-webkit-details-marker { display: none; }
+.genre-box > summary::after { content: "▾"; float: right; color: var(--g500); }
+.genre-box[open] > summary::after { content: "▴"; }
+.genre-box.filtering { border-color: var(--v500); }
+.genre-box.filtering > summary { color: var(--v700); }
+.genre-body { padding: 0 14px 12px; }
+.genre-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.genre-body .lib-info { margin: 8px 0; }
+.is-multi .genre-box { opacity: 0.45; pointer-events: none; }
+.mp-hint { margin: -2px 0 0; font-size: 0.78rem; color: var(--g500); }
+
+/* Défis */
+.ch-block { display: flex; flex-direction: column; gap: 10px; }
+.ch-block h3 { margin: 6px 0 0; font-size: 0.85rem; letter-spacing: 0.05em; text-transform: uppercase; color: var(--v700); }
+.ch-block .mp-row input[type="text"] { flex: 1 1 200px; width: auto; }
+.ch-list { margin: 0; padding: 0; list-style: none; }
+.ch-row { padding: 8px 4px; border-bottom: 1px solid var(--g200); }
+.ch-row:last-child { border-bottom: none; }
+.ch-top { display: flex; align-items: center; gap: 8px; }
+.ch-top .btn.mini { flex-shrink: 0; }
+.ch-ctrl { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; margin: 6px 0 0 40px; }
+.ch-lbl {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-size: 0.82rem; font-weight: 600; letter-spacing: 0; text-transform: none; color: var(--g700);
+}
+.ch-lbl input { width: 74px; padding: 6px 6px; text-align: center; }
+.ch-seek { flex: 1 1 160px; min-width: 120px; }
+.sb-verdict.skip { background: var(--g500); }
+@media (max-width: 520px) {
+  .ch-ctrl { margin-left: 0; }
+}
+
+/* Défis : recherche intégrée et vidéo de réglage */
+.ch-qres { max-height: 260px; overflow-y: auto; margin-bottom: 10px; }
+.ch-vid { margin: 8px 0 0 40px; }
+.ch-vid video { width: 100%; max-height: 240px; border-radius: var(--r-s); background: #000; }
+.ch-vid-bar { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+@media (max-width: 520px) { .ch-vid { margin-left: 0; } }

@@ -148,11 +148,48 @@
    * ------------------------------------------------------------------ */
   const SONG_TABLE = typeof SONGS !== 'undefined' ? SONGS : {};
 
+  /* ------------------------------------------------------------------
+   * Réglages de l'administrateur : js/overrides.js (écrit par la page admin.html).
+   * Ils sont PRIORITAIRES sur js/animes.js : difficulté d'un anime, d'un opening précis (par identifiant),
+   * animes ajoutés / retirés de la liste, genres, openings ou animes exclus du jeu.
+   * ------------------------------------------------------------------ */
+  const OV = (window.OVERRIDES && typeof window.OVERRIDES === 'object') ? window.OVERRIDES : {};
+  const OV_ANIMES = OV.animes && typeof OV.animes === 'object' ? OV.animes : {};
+  const OV_GENRES = OV.genres && typeof OV.genres === 'object' ? OV.genres : {};
+  const OV_EXCLUDED = new Set((Array.isArray(OV.excluded) ? OV.excluded : []).map(Number));
+  const OV_EXCLUDED_ANIMES = new Set(Array.isArray(OV.excludedAnimes) ? OV.excludedAnimes : []);
+  const GENRE_TABLE = window.ANIME_GENRES || {};
+
+  (Array.isArray(OV.added) ? OV.added : []).forEach((a) => {
+    if (!a || !a.slug || ANIMES.some((x) => x.slug === a.slug)) return;
+    ANIMES.push({
+      title: a.title || a.slug,
+      slug: a.slug,
+      tier: LEVELS.includes(a.tier) ? a.tier : 'hard',
+      ...(a.query ? { query: a.query } : {}),
+      ...(Array.isArray(a.aliases) && a.aliases.length ? { aliases: a.aliases } : {}),
+      ...(a.prefix ? { prefix: true } : {}),
+      ...(a.keep ? { keep: true } : {})
+    });
+  });
+  const ovRemoved = new Set(Array.isArray(OV.removed) ? OV.removed : []);
+  for (let i = ANIMES.length - 1; i >= 0; i--) if (ovRemoved.has(ANIMES[i].slug)) ANIMES.splice(i, 1);
+
   ANIMES.forEach((f) => {
     f.id = f.slug;
     f.local = true;
     f.nkeys = [f.title, ...(f.aliases || [])].map(norm);
     f.anchorBase = baseKey(f.query || f.slug.replace(/_/g, ' '));
+
+    // Corrections de l'administrateur
+    const ov = OV_ANIMES[f.slug];
+    if (ov && LEVELS.includes(ov.tier)) f.tier = ov.tier;
+    f.ovIds = {};                                   // difficulté d'un opening précis (par identifiant AnimeThemes)
+    if (ov && ov.opsById && typeof ov.opsById === 'object') {
+      Object.keys(ov.opsById).forEach((id) => { if (LEVELS.includes(ov.opsById[id])) f.ovIds[id] = ov.opsById[id]; });
+    }
+    const gBase = GENRE_TABLE[f.slug] ? String(GENRE_TABLE[f.slug]).split(/\s+/).filter(Boolean) : [];
+    f.genres = Array.isArray(OV_GENRES[f.slug]) ? OV_GENRES[f.slug] : gBase;
 
     // Difficulté de musiques précises, repérées par leur titre
     f.songMap = [];
@@ -210,6 +247,7 @@
   }
 
   function opTier(f, op) {
+    if (f.ovIds && op.themeId !== undefined && f.ovIds[op.themeId]) return f.ovIds[op.themeId];   // réglage admin
     if (f.ops && f.ops[op.number]) return f.ops[op.number];
     const st = songTier(f, op.s);
     if (st) return st;
@@ -228,6 +266,7 @@
     s.add(t); t = STEP_DOWN[t]; s.add(t); t = STEP_DOWN[t]; s.add(t);
     f.songMap.forEach((x) => s.add(x.t));
     Object.values(f.ops || {}).forEach((x) => s.add(x));
+    Object.values(f.ovIds || {}).forEach((x) => s.add(x));
     f._ts = s;
     return s;
   }
@@ -255,6 +294,12 @@
   }
   const levels = loadLevels();
 
+  // Genres choisis (mode « devine par genre ») : vide = aucun filtre
+  const GENRE_IDS = new Set((window.GENRES || []).map((g) => g.id));
+  const GENRE_KEY = 'opening-quiz-genres';
+  const genreSel = new Set(store.get(GENRE_KEY, '').split(',').filter((g) => GENRE_IDS.has(g)));
+  const soloOpts = () => ({ genres: Array.from(genreSel) });
+
   let totalOPs = 0;
   let totalKnown = false;
 
@@ -279,6 +324,7 @@
 
   // Crochets utilisés par le mode multijoueur (js/multi.js)
   const mp = { active: false, onAnswer: null, onNext: null, onPrefetched: null };
+  // (js/challenge.js réutilise ces mêmes crochets : un défi se joue comme une partie à un seul joueur)
 
   const recent = [];                 // derniers animes joués
   const history = [];                // résultats récents (pour la petite frise)
@@ -449,9 +495,9 @@
 
   lengthInput.value = String(snippetSeconds);
   lengthInput.addEventListener('change', () => applyLength(parseFloat(String(lengthInput.value).replace(',', '.'))));
-  // Boutons − / + : 1 seconde ; en dessous de 1 s, on passe directement à 0,1 s (et inversement)
-  lenMinus.addEventListener('click', () => applyLength(snippetSeconds > 1 ? snippetSeconds - 1 : MIN_LENGTH));
-  lenPlus.addEventListener('click', () => applyLength(snippetSeconds < 1 ? 1 : snippetSeconds + 1));
+  // Boutons − / + : de 0,1 s à 1 s on avance par pas de 0,1 s (0,2 ; 0,3 ; 0,4…), au-delà par pas de 1 s
+  lenMinus.addEventListener('click', () => applyLength(snippetSeconds > 1.001 ? Math.max(1, snippetSeconds - 1) : snippetSeconds - 0.1));
+  lenPlus.addEventListener('click', () => applyLength(snippetSeconds < 0.999 ? snippetSeconds + 0.1 : snippetSeconds + 1));
 
   /* ------------------------------------------------------------------
    * Lecture audio
@@ -938,7 +984,7 @@
 
   // Facile / moyen : on choisit une franchise de la liste, puis un de ses openings de cette difficulté.
   async function randomOpeningCurated(level, opts) {
-    const has = (f) => !f._dead && tierSet(f).has(level)
+    const has = (f) => !f._dead && !OV_EXCLUDED_ANIMES.has(f.slug) && tierSet(f).has(level)
       && (!f._data || f._data.ops.some((o) => opTier(f, o) === level && yearOk(o.year, opts)));
 
     let pool = ANIMES.filter((f) => has(f) && !recent.includes(f.slug));
@@ -958,6 +1004,31 @@
 
     const theme = await fetchTheme(op.themeId);
     return infoFromTheme(theme, op.number, f, { altNumbers: altNumbers(data.ops, op), tier: level });
+  }
+
+  // Mode « genres » : on pioche parmi les animes de la liste qui ont au moins l'un des genres choisis
+  // (toutes leurs openings, dans les difficultés cochées).
+  async function randomOpeningGenre(opts) {
+    const wanted = new Set(opts.genres);
+    const lv = opts.levels ? LEVELS.filter((l) => opts.levels.includes(l)) : LEVELS.filter((l) => levels.has(l));
+    const okOp = (f, o) => lv.includes(opTier(f, o)) && yearOk(o.year, opts);
+    const base = (f) => !f._dead && !OV_EXCLUDED_ANIMES.has(f.slug)
+      && f.genres.some((g) => wanted.has(g))
+      && Array.from(tierSet(f)).some((t) => lv.includes(t))
+      && (!f._data || f._data.ops.some((o) => okOp(f, o)));
+
+    let pool = ANIMES.filter((f) => base(f) && !recent.includes(f.slug));
+    if (!pool.length) pool = ANIMES.filter(base);
+    if (!pool.length) return null;
+
+    const f = pick(pool);
+    const data = await resolveCurated(f);
+    if (!data) return null;
+    const candidates = data.ops.filter((o) => okOp(f, o));
+    if (!candidates.length) return null;
+    const op = pick(candidates);
+    const theme = await fetchTheme(op.themeId);
+    return infoFromTheme(theme, op.number, f, { altNumbers: altNumbers(data.ops, op), tier: opTier(f, op) });
   }
 
   // Nombre total d'openings : avec une page de 1 résultat, la dernière page = le total.
@@ -1025,7 +1096,12 @@
   async function fetchRandomOpening(opts = {}) {
     const active = opts.levels ? LEVELS.filter((l) => opts.levels.includes(l)) : LEVELS.filter((l) => levels.has(l));
     const level = pick(active.length ? active : LEVELS);
-    return level === 'hard' ? randomOpeningHard(opts) : randomOpeningCurated(level, opts);
+    let info;
+    if (opts.genres && opts.genres.length) info = await randomOpeningGenre(opts);
+    else info = level === 'hard' ? await randomOpeningHard(opts) : await randomOpeningCurated(level, opts);
+    // Openings / animes exclus par l'administrateur : on en tire un autre
+    if (info && (OV_EXCLUDED.has(Number(info.themeId)) || OV_EXCLUDED_ANIMES.has(info.animeSlug))) return null;
+    return info;
   }
 
   /* ------------------------------------------------------------------
@@ -1173,7 +1249,8 @@
    * ------------------------------------------------------------------ */
   let prefetch = null;      // { sig, promise }
   const optSig = (o) => JSON.stringify([
-    (o.levels ? o.levels.slice() : LEVELS.filter((l) => levels.has(l))).sort(), o.yearMin || 0, o.yearMax || 0
+    (o.levels ? o.levels.slice() : LEVELS.filter((l) => levels.has(l))).sort(), o.yearMin || 0, o.yearMax || 0,
+    (o.genres || []).slice().sort()
   ]);
 
   function startPrefetch(opts) {
@@ -1226,7 +1303,7 @@
     playerCard.classList.remove('answered');
     setHintBtn(fullBtn, 'Opening entier', 'locked');
     setHintBtn(lettersBtn, 'Initiales', 'locked');
-    setLengthEnabled(!mp.active);
+    setLengthEnabled(!mp.active);        // (un défi passe aussi par mp.active : la durée est fixée par le défi)
     lettersEl.classList.add('hidden');
     lettersEl.textContent = '';
 
@@ -1249,6 +1326,8 @@
 
     resultCard.classList.add('hidden');
     scoreboardEl.classList.add('hidden');
+    const nextMsg = $('mp-next-msg');
+    if (nextMsg) nextMsg.classList.add('hidden');      // correctif : ce message restait affiché après une partie multijoueur
     nextBtn.classList.remove('hidden');
     resetVideo();
     updatePlayBtn();
@@ -1337,13 +1416,69 @@
     resetUI();
     statusEl.textContent = 'Chargement…';
 
-    const info = await acquireRound(id, {});
+    const info = await acquireRound(id, soloOpts());
     if (info === null) return;
     if (!info) {
       showLoadError('Impossible de charger un opening (connexion ?). Clique sur « Suivant » pour réessayer.');
       return;
     }
-    activateRound(info, {});
+    activateRound(info, soloOpts());
+  }
+
+  // Tout ce qu'il faut pour un round à partir d'un identifiant d'opening (défis, import d'un défi)
+  async function infoForThemeId(themeId) {
+    const theme = await fetchTheme(themeId);
+    if (!theme || !theme.anime || !usableTheme(theme)) return null;
+    const entry = entryInfo(theme.anime);
+    indexEntries([entry]);
+    const f = findCurated(entry);
+    let number = theme.sequence || 1;
+    let alts = [];
+    let tier = 'hard';
+    if (f) {
+      const fdata = await resolveCurated(f).catch(() => null);
+      const op = fdata && fdata.ops.find((o) => o.themeId === theme.id);
+      if (op) { number = op.number; alts = altNumbers(fdata.ops, op); tier = opTier(f, op); }
+    } else {
+      const fr = await franchiseFor(entry, theme);
+      const op = fr.ops.find((o) => o.themeId === theme.id);
+      if (op) { number = op.number; alts = altNumbers(fr.ops, op); }
+    }
+    return infoFromTheme(theme, number, f, { altNumbers: alts, tier });
+  }
+
+  // Un round de défi : l'opening, le point de départ et la durée sont imposés.
+  // Renvoie l'info du round, null (annulé) ou false (opening introuvable / audio impossible).
+  async function challengeRound(spec) {
+    const id = ++roundId;
+    resetUI();
+    applyLength(spec.length, false);
+    statusEl.textContent = 'Chargement…';
+    try {
+      const info = await infoForThemeId(spec.id);
+      if (id !== roundId) return null;
+      if (!info) return false;
+      const [ok] = await Promise.all([prepareAudio(info.url, spec.start), prepareInfo(info)]);
+      if (id !== roundId) return null;
+      if (!ok) return false;
+      info.snippetStart = snippetStart;
+      activateRound(info, null);
+      return info;
+    } catch (err) {
+      console.warn('[Opening Quiz] Défi : opening impossible à charger :', err);
+      return id !== roundId ? null : false;
+    }
+  }
+
+  // Un opening au hasard (utilisé pour remplir un défi) ; null si rien n'a pu être chargé
+  async function randomOpening(o = {}) {
+    for (let i = 0; i < 6; i++) {
+      try {
+        const info = await fetchRandomOpening({ levels: o.levels, genres: o.genres || [] });
+        if (info) return info;
+      } catch (err) { await sleep(300); }
+    }
+    return null;
   }
 
   // --- Multijoueur : l'hôte tire l'opening, les invités reçoivent le même ---
@@ -1622,6 +1757,7 @@
   function showResult() {
     if (!round || !answered || resultShown || !lastVerdict) return;
     resultShown = true;
+    waitMsg.classList.add('hidden');
     const { cls, label } = lastVerdict;
 
     verdictEl.textContent = label;
@@ -1783,6 +1919,7 @@
       mp.onNext = null;
       mp.onPrefetched = null;
       document.body.classList.remove('is-multi');
+      nextBtn.textContent = 'Suivant ➜';
       hintsAllowed = true;
       optNumber.disabled = false;
       applyGuessNumber(store.get('opening-quiz-guessnumber', '1') !== '0', false);
@@ -1794,7 +1931,18 @@
     isAnswered: () => answered,
     forceGiveUp() { if (round && !answered) finishRound(null, null, true); },
     nextBtn,
-    pauseGame() { audio.pause(); resVideo.pause(); }
+    pauseGame() { audio.pause(); resVideo.pause(); },
+    // Défis et genres
+    challengeRound, infoForThemeId, randomOpening,
+    getLevels: () => LEVELS.filter((l) => levels.has(l)),
+    getGenres: () => Array.from(genreSel),
+    setGenres(list) {
+      genreSel.clear();
+      (list || []).forEach((g) => { if (GENRE_IDS.has(g)) genreSel.add(g); });
+      store.set(GENRE_KEY, Array.from(genreSel).join(','));
+      if (!mp.active) scheduleReload();
+    },
+    genreCount: (list) => ANIMES.filter((f) => !f._dead && !OV_EXCLUDED_ANIMES.has(f.slug) && f.genres.some((g) => (list || []).includes(g))).length
   };
 
   /* ------------------------------------------------------------------

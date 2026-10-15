@@ -67,7 +67,19 @@
           <h3>Listes, compte, bibliothèque</h3>
           <ul>
             <li><b>Listes</b> : crée autant de listes que tu veux. <b>Compte</b> : chaque compte a ses propres listes (enregistrées sur cet appareil ; exporte-les pour les retrouver ailleurs).</li>
-            <li><b>Bibliothèque</b> : tous les openings, avec recherche et difficulté.</li>
+            <li><b>Bibliothèque</b> : tous les openings, avec recherche, difficulté, écoute <b>▶</b> et vidéo <b>🎬</b>.</li>
+          </ul>
+
+          <h3>Genres</h3>
+          <ul>
+            <li>Ouvre <b>🎭 Genres</b> (sous le lecteur) et coche un ou plusieurs genres (Comédie, Ecchi, Isekai, Romance…) : seuls les openings d'animes ayant l'un de ces genres sont proposés. Rien de coché = tout le catalogue.</li>
+            <li>Les genres concernent les animes de la liste Facile / Moyen ; les difficultés cochées restent prises en compte.</li>
+          </ul>
+
+          <h3>Défis entre amis</h3>
+          <ul>
+            <li>Onglet <b>⚔ Défis</b> : compose une liste d'openings (nombre libre), choisis pour chacun le <b>début</b> et la <b>durée</b> de l'extrait, puis copie le <b>lien</b> ou le <b>code</b> à envoyer à un ami.</li>
+            <li>Ton ami ouvre le lien, joue les openings à la suite et peut te renvoyer son score.</li>
           </ul>
 
           <h3>Multijoueur</h3>
@@ -90,6 +102,7 @@
     <button id="nav-library" class="btn secondary" type="button">Bibliothèque</button>
     <button id="nav-lists" class="btn secondary" type="button">Listes</button>
     <button id="nav-multi" class="btn secondary" type="button">Multijoueur</button>
+    <button id="nav-challenge" class="btn secondary" type="button">⚔ Défis</button>
     <button id="nav-account" class="btn secondary" type="button">👤 Compte</button>
   </nav>
 
@@ -147,6 +160,16 @@
 
       <div id="letters" class="letters hidden" aria-live="polite"></div>
     </section>
+
+    <!-- Genres : ne proposer que les openings d'animes de certains genres -->
+    <details id="genre-box" class="genre-box">
+      <summary>🎭 Genres : <span id="genre-label">tous</span></summary>
+      <div class="genre-body">
+        <div id="genre-chips" class="genre-chips"></div>
+        <p id="genre-info" class="lib-info"></p>
+        <button id="genre-clear" class="btn secondary mini2" type="button">Tout décocher</button>
+      </div>
+    </details>
 
     <!-- Réponse -->
     <section class="card">
@@ -246,6 +269,7 @@
           <button class="tab active" type="button" data-tab="library">Bibliothèque</button>
           <button class="tab" type="button" data-tab="lists">Listes</button>
           <button class="tab" type="button" data-tab="multi">Multijoueur</button>
+          <button class="tab" type="button" data-tab="challenge">Défis</button>
           <button class="tab" type="button" data-tab="account">Compte</button>
         </div>
         <button id="panel-close" class="btn secondary square" type="button" aria-label="Fermer">✕</button>
@@ -330,6 +354,11 @@
                 <small>(facultatif)</small>
               </div>
               <div class="mp-row">
+                <span class="mp-label">Genres</span>
+                <div id="mp-genres" class="genre-chips"></div>
+              </div>
+              <p class="mp-hint">Aucun genre coché = tous les openings. Les genres concernent les animes de la liste Facile / Moyen.</p>
+              <div class="mp-row">
                 <span class="mp-label">À deviner</span>
                 <label class="mp-check"><input id="mp-number" type="checkbox" checked> Le numéro de l'opening (sinon, seulement l'anime)</label>
               </div>
@@ -346,6 +375,91 @@
               <button id="mp-leave" class="btn secondary" type="button">Quitter la room</button>
             </div>
             <p id="mp-lobby-msg" class="mp-msg"></p>
+          </div>
+        </section>
+
+        <!-- Défis entre amis -->
+        <section id="tab-challenge" class="tabpane hidden">
+
+          <!-- Un défi reçu par lien : on l'affiche avant de le démarrer -->
+          <div id="ch-play" class="ch-block hidden">
+            <h3 id="ch-play-title"></h3>
+            <p id="ch-play-info" class="mp-summary"></p>
+            <div class="mp-actions">
+              <button id="ch-start" class="btn big" type="button">Démarrer le défi</button>
+              <button id="ch-back-build" class="btn secondary" type="button">Créer mon propre défi</button>
+            </div>
+            <p id="ch-play-msg" class="mp-msg"></p>
+          </div>
+
+          <!-- Fin d'un défi -->
+          <div id="ch-final" class="ch-block hidden">
+            <h3 id="ch-final-title"></h3>
+            <p id="ch-final-score" class="mp-summary"></p>
+            <ul id="ch-final-list" class="lib-rows"></ul>
+            <div class="mp-actions">
+              <button id="ch-copy-result" class="btn" type="button">Copier mon résultat</button>
+              <button id="ch-quit" class="btn secondary" type="button">Fermer le défi</button>
+            </div>
+          </div>
+
+          <!-- Création d'un défi -->
+          <div id="ch-build" class="ch-block">
+            <p class="acc-note">Compose une liste d'openings pour un ami : pour chacun, tu choisis où l'extrait démarre et sa durée. Ajoute des openings avec le bouton ⚔ de la Bibliothèque et des Listes, ou au hasard. (Ce ne sont pas les « listes » de favoris.)</p>
+
+            <div class="mp-row">
+              <label class="mp-label" for="ch-title">Nom du défi</label>
+              <input id="ch-title" type="text" maxlength="40" placeholder="facultatif" autocomplete="off">
+            </div>
+            <div class="mp-row">
+              <span class="mp-label">À deviner</span>
+              <label class="mp-check"><input id="ch-number" type="checkbox" checked> Le numéro de l'opening (sinon, seulement l'anime)</label>
+            </div>
+            <div class="mp-row">
+              <span class="mp-label">Indices</span>
+              <label class="mp-check"><input id="ch-hints" type="checkbox"> Autorisés (ils rapportent moins de points)</label>
+            </div>
+            <div class="mp-row">
+              <label class="mp-label" for="ch-deflen">Durée par défaut</label>
+              <input id="ch-deflen" type="number" min="0.1" max="20" step="0.1" value="5" inputmode="decimal">
+              <small>secondes</small>
+              <button id="ch-apply-len" class="btn secondary mini2" type="button">Appliquer à tous</button>
+            </div>
+            <div class="mp-row">
+              <span class="mp-label">Ajouter au hasard</span>
+              <input id="ch-rand-n" type="number" min="1" max="100" step="1" value="5" inputmode="numeric">
+              <button id="ch-rand" class="btn secondary mini2" type="button">＋ au hasard</button>
+              <small>(selon les difficultés et genres choisis sur la page de jeu)</small>
+            </div>
+
+            <h3>Chercher un opening à ajouter</h3>
+            <div class="acc-row">
+              <input id="ch-q" type="text" placeholder="nom d'un anime (ex. Naruto)" autocomplete="off" spellcheck="false">
+              <button id="ch-q-go" class="btn secondary" type="button">Chercher</button>
+            </div>
+            <p id="ch-q-info" class="lib-info"></p>
+            <div id="ch-q-res" class="ch-qres"></div>
+
+            <h3>Openings du défi</h3>
+            <p id="ch-count" class="lib-info"></p>
+            <ul id="ch-list" class="ch-list"></ul>
+            <div class="mp-actions">
+              <button id="ch-reroll" class="btn secondary mini2" type="button">🎲 Nouveaux départs au hasard</button>
+              <button id="ch-clear" class="btn secondary mini2" type="button">Vider le défi</button>
+            </div>
+
+            <h3>Envoyer à un ami</h3>
+            <div class="mp-actions">
+              <button id="ch-copy-link" class="btn" type="button">Copier le lien</button>
+              <button id="ch-copy-code" class="btn secondary" type="button">Copier le code</button>
+              <button id="ch-copy-list" class="btn secondary" type="button">Copier la liste</button>
+            </div>
+            <p class="acc-note">Le lien et le code contiennent tout le défi. « Copier la liste » donne un texte lisible avec les réponses : à garder pour toi !</p>
+            <div class="mp-row">
+              <input id="ch-import" type="text" placeholder="coller un code ou un lien de défi (pour le rouvrir ici)" autocomplete="off" spellcheck="false">
+              <button id="ch-import-btn" class="btn secondary" type="button">Importer</button>
+            </div>
+            <p id="ch-msg" class="lib-info"></p>
           </div>
         </section>
 
@@ -393,9 +507,13 @@
   </div>
 
   <script src="js/animes.js"></script>
+  <script src="js/genres.js"></script>
+  <script src="js/overrides.js"></script>
   <script src="js/app.js"></script>
   <script src="js/lists.js"></script>
   <script src="js/library.js"></script>
+  <script src="js/genre-ui.js"></script>
+  <script src="js/challenge.js"></script>
   <script src="js/multi.js"></script>
   <script src="js/fx.js"></script>
 </body>
