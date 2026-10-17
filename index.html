@@ -9,7 +9,7 @@
   <link rel="icon" href="favicon-32.png" sizes="32x32" type="image/png">
   <link rel="apple-touch-icon" href="apple-touch-icon.png">
   <link rel="manifest" href="site.webmanifest">
-  <link rel="stylesheet" href="css/style.css?v=20261019">
+  <link rel="stylesheet" href="css/style.css?v=20261020">
 </head>
 <body>
 
@@ -31,6 +31,9 @@
         <button id="lvl-hard" class="seg active" type="button" aria-pressed="true">Difficile</button>
       </div>
 
+      <!-- Langue -->
+      <select id="lang-select" class="lang-select" aria-label="Langue"></select>
+
       <!-- Aide : survol sur ordinateur, appui sur téléphone -->
       <div id="help" class="help">
         <button id="help-btn" class="btn secondary square" type="button" aria-describedby="help-box" aria-label="Aide">?</button>
@@ -39,54 +42,54 @@
                Les <span data-count="…"> sont remplis automatiquement par le site. -->
           <h3>Jouer</h3>
           <ul>
-            <li>Un extrait d'opening est joué à un <b>moment aléatoire</b> (durée réglable : <b>0,1 à 20 s</b>).</li>
-            <li>Trouve <b>l'anime</b> et le <b>numéro de l'opening</b>, puis <b>Valider</b>. Les saisons d'un anime sont regroupées et ses openings numérotés <u>à la suite</u>. Deux openings qui ont la même musique sont tous les deux acceptés.</li>
-            <li><b>Correct</b> = bon anime et bon numéro · <b>Presque</b> = bon anime, mauvais numéro · <b>Faux</b>. <b>Abandonner</b> montre la réponse.</li>
-            <li>Options : décocher <b>Deviner le numéro</b> pour ne trouver que l'anime ; <b>Vidéo automatique</b> lance la vidéo après chaque réponse.</li>
+            <li data-i18n-html="help1">Un extrait d'opening est joué à un <b>moment aléatoire</b> (durée réglable : <b>0,1 à 20 s</b>).</li>
+            <li data-i18n-html="help2">Trouve <b>l'anime</b> et le <b>numéro de l'opening</b>, puis <b>Valider</b>. Les saisons d'un anime sont regroupées et ses openings numérotés <u>à la suite</u>. Deux openings qui ont la même musique sont tous les deux acceptés.</li>
+            <li data-i18n-html="help3"><b>Correct</b> = bon anime et bon numéro · <b>Presque</b> = bon anime, mauvais numéro · <b>Faux</b>. <b>Abandonner</b> montre la réponse.</li>
+            <li data-i18n-html="help4">Options : décocher <b>Deviner le numéro</b> pour ne trouver que l'anime ; <b>Vidéo automatique</b> lance la vidéo après chaque réponse.</li>
           </ul>
 
           <h3>Indices</h3>
           <ul>
-            <li><b>Opening entier</b> : la musique complète. Il débloque ensuite <b>Initiales</b> : la première lettre de chaque mot du titre.</li>
+            <li data-i18n-html="help5"><b>Opening entier</b> : la musique complète. Il débloque ensuite <b>Initiales</b> : la première lettre de chaque mot du titre.</li>
           </ul>
 
           <h3>Difficultés (cumulables)</h3>
           <ul>
-            <li><b>Facile</b> : <span data-count="easy">…</span> openings, les plus connus.</li>
-            <li><b>Moyen</b> : <span data-count="medium">…</span> openings, moins marquants.</li>
-            <li><b>Difficile</b> : <span data-count="hard">…</span> openings, tout le reste du catalogue.</li>
+            <li data-i18n-html="help6"><b>Facile</b> : <span data-count="easy">…</span> openings, les plus connus.</li>
+            <li data-i18n-html="help7"><b>Moyen</b> : <span data-count="medium">…</span> openings, moins marquants.</li>
+            <li data-i18n-html="help8"><b>Difficile</b> : <span data-count="hard">…</span> openings, tout le reste du catalogue.</li>
           </ul>
-          <p class="small">La difficulté est notée pour chaque <b>opening</b>, pas pour l'anime entier : dans une même série, certains sont faciles et d'autres difficiles. Classement fait à la main (époque, popularité de l'anime, notoriété de l'opening). Les nombres se calculent au premier chargement (quelques minutes).</p>
+          <p class="small" data-i18n-html="help9">La difficulté est notée pour chaque <b>opening</b>, pas pour l'anime entier : dans une même série, certains sont faciles et d'autres difficiles. Classement fait à la main (époque, popularité de l'anime, notoriété de l'opening). Les nombres se calculent au premier chargement (quelques minutes).</p>
 
           <h3>Après la réponse</h3>
           <ul>
-            <li>Titre, difficulté, couverture, sortie, lien <b>MyAnimeList</b> et <b>vidéo</b> de l'opening.</li>
-            <li><b>＋ Ajouter à une liste</b> range l'opening dans une ou plusieurs de tes listes.</li>
+            <li data-i18n-html="help10">Titre, difficulté, couverture, sortie, lien <b>MyAnimeList</b> et <b>vidéo</b> de l'opening.</li>
+            <li data-i18n-html="help11"><b>＋ Ajouter à une liste</b> range l'opening dans une ou plusieurs de tes listes.</li>
           </ul>
 
           <h3>Listes, compte, bibliothèque</h3>
           <ul>
-            <li><b>Listes</b> : crée autant de listes que tu veux. <b>Compte</b> : chaque compte a ses propres listes (enregistrées sur cet appareil ; exporte-les pour les retrouver ailleurs).</li>
-            <li><b>Bibliothèque</b> : tous les openings, avec recherche, difficulté, écoute <b>▶</b> et vidéo <b>🎬</b>.</li>
+            <li data-i18n-html="help12"><b>Listes</b> : crée autant de listes que tu veux. <b>Compte</b> : chaque compte a ses propres listes (enregistrées sur cet appareil ; exporte-les pour les retrouver ailleurs).</li>
+            <li data-i18n-html="help13"><b>Bibliothèque</b> : tous les openings, avec recherche, difficulté, écoute <b>▶</b> et vidéo <b>🎬</b>.</li>
           </ul>
 
           <h3>Genres</h3>
           <ul>
-            <li>Ouvre <b>🎭 Genres</b> (sous le lecteur) et coche un ou plusieurs genres (Comédie, Ecchi, Isekai, Romance…) : seuls les openings d'animes ayant l'un de ces genres sont proposés. Rien de coché = tout le catalogue.</li>
+            <li data-i18n-html="help14">Ouvre <b>🎭 Genres</b> (au-dessus du lecteur) et coche un ou plusieurs genres (Comédie, Ecchi, Isekai, Romance…) : seuls les openings d'animes ayant l'un de ces genres sont proposés. Rien de coché = tout le catalogue.</li>
             <li>Les genres concernent les animes de la liste Facile / Moyen ; les difficultés cochées restent prises en compte.</li>
           </ul>
 
           <h3>Défis entre amis</h3>
           <ul>
-            <li>Onglet <b>⚔ Défis</b> : compose une liste d'openings (nombre libre), choisis pour chacun le <b>début</b> et la <b>durée</b> de l'extrait, puis copie le <b>lien</b> ou le <b>code</b> à envoyer à un ami.</li>
+            <li data-i18n-html="help15">Onglet <b>⚔ Défis</b> : compose une liste d'openings (nombre libre), choisis pour chacun le <b>début</b> et la <b>durée</b> de l'extrait, puis copie le <b>lien</b> à envoyer à un ami.</li>
             <li>Ton ami ouvre le lien, joue les openings à la suite et peut te renvoyer son score.</li>
           </ul>
 
           <h3>Multijoueur</h3>
           <ul>
-            <li>Crée une room et partage le <b>code</b> (ou le lien). L'hôte règle tout : difficultés, de <b>1 à 100</b> openings, durée, années, indices, numéro à deviner ou non.</li>
-            <li>Tout le monde entend le même extrait. L'opening n'est révélé que quand <b>tous</b> ont validé ou abandonné.</li>
-            <li><b>3 points</b> par bonne réponse sans indice, <b>2</b> avec l'opening entier, <b>1</b> avec les initiales.</li>
+            <li data-i18n-html="help16">Crée une room et partage le <b>code</b> (ou le lien). L'hôte règle tout : difficultés, de <b>1 à 100</b> openings, durée, années, indices, numéro à deviner ou non.</li>
+            <li data-i18n-html="help17">Tout le monde entend le même extrait. L'opening n'est révélé que quand <b>tous</b> ont validé ou abandonné.</li>
+            <li data-i18n-html="help18"><b>3 points</b> par bonne réponse sans indice, <b>2</b> avec l'opening entier, <b>1</b> avec les initiales.</li>
           </ul>
 
           <h3>Crédits</h3>
@@ -494,15 +497,17 @@
     </div>
   </div>
 
-  <script src="js/animes.js?v=20261019"></script>
-  <script src="js/genres.js?v=20261019"></script>
-  <script src="js/overrides.js?v=20261019"></script>
-  <script src="js/app.js?v=20261019"></script>
-  <script src="js/lists.js?v=20261019"></script>
-  <script src="js/library.js?v=20261019"></script>
-  <script src="js/genre-ui.js?v=20261019"></script>
-  <script src="js/challenge.js?v=20261019"></script>
-  <script src="js/multi.js?v=20261019"></script>
-  <script src="js/fx.js?v=20261019"></script>
+  <script src="js/i18n-data.js?v=20261020"></script>
+  <script src="js/i18n.js?v=20261020"></script>
+  <script src="js/animes.js?v=20261020"></script>
+  <script src="js/genres.js?v=20261020"></script>
+  <script src="js/overrides.js?v=20261020"></script>
+  <script src="js/app.js?v=20261020"></script>
+  <script src="js/lists.js?v=20261020"></script>
+  <script src="js/library.js?v=20261020"></script>
+  <script src="js/genre-ui.js?v=20261020"></script>
+  <script src="js/challenge.js?v=20261020"></script>
+  <script src="js/multi.js?v=20261020"></script>
+  <script src="js/fx.js?v=20261020"></script>
 </body>
 </html>

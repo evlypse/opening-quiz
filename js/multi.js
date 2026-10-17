@@ -137,14 +137,17 @@
     if (mpSync) mpSync();
   }
 
+  const T = (s) => (window.I18N ? window.I18N.t(s) : s);
+  const decimal = (n) => (window.I18N && window.I18N.lang === 'en' ? String(n) : String(n).replace('.', ','));
+
   function summary(s) {
-    const years = s.yearMin || s.yearMax ? ' · années ' + (s.yearMin || '…') + '–' + (s.yearMax || '…') : '';
-    return 'Difficultés : ' + s.levels.map((l) => LEVEL_LABEL[l]).join(', ')
-      + ' · ' + s.rounds + ' opening' + (s.rounds > 1 ? 's' : '')
-      + ' · extrait ' + String(s.length).replace('.', ',') + ' s' + years
-      + (s.genres && s.genres.length ? ' · genres : ' + s.genres.map((g) => (OQ.genreLabel ? OQ.genreLabel(g) : g)).join(', ') : '')
-      + ' · ' + (s.guessNumber === false ? 'anime seulement' : 'anime + numéro')
-      + ' · indices ' + (s.hints ? 'autorisés (3 pts sans indice, 2 avec l\'opening entier, 1 avec les initiales)' : 'désactivés (3 pts par bonne réponse)');
+    const years = s.yearMin || s.yearMax ? T(' · années ') + (s.yearMin || '…') + '–' + (s.yearMax || '…') : '';
+    return T('Difficultés : ') + s.levels.map((l) => T(LEVEL_LABEL[l])).join(', ')
+      + ' · ' + T(s.rounds + ' opening' + (s.rounds > 1 ? 's' : ''))
+      + T(' · extrait ') + decimal(s.length) + ' s' + years
+      + (s.genres && s.genres.length ? T(' · genres : ') + s.genres.map((g) => T(OQ.genreLabel ? OQ.genreLabel(g) : g)).join(', ') : '')
+      + ' · ' + T(s.guessNumber === false ? 'anime seulement' : 'anime + numéro')
+      + T(' · indices ') + T(s.hints ? 'autorisés (3 pts sans indice, 2 avec l\'opening entier, 1 avec les initiales)' : 'désactivés (3 pts par bonne réponse)');
   }
 
   /* ------------------------------------------------------------------

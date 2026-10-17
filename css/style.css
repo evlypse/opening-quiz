@@ -894,3 +894,6 @@ select:focus { outline: none; border-color: var(--v500); box-shadow: 0 0 0 3px v
 .lib-vol { display: flex; align-items: center; gap: 10px; margin: 8px 0 0; font-size: 0.86rem; font-weight: 600; color: var(--g700); }
 .lib-vol input { flex: 1 1 120px; min-width: 100px; }
 .lib-vol span { min-width: 38px; text-align: right; font-variant-numeric: tabular-nums; font-weight: 500; }
+
+/* Choix de la langue */
+.lang-select { width: auto; min-width: 0; height: 38px; padding: 0 28px 0 10px; font-size: 0.85rem; font-weight: 600; cursor: pointer; }

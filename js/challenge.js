@@ -35,6 +35,8 @@
   const fmt = (n) => String(round1(n)).replace('.', ',');
   const rand = (n) => Math.floor(Math.random() * n);
 
+  const T = (s) => (window.I18N ? window.I18N.t(s) : s);
+
   function el(tag, cls, text) {
     const e = document.createElement(tag);
     if (cls) e.className = cls;
@@ -474,7 +476,7 @@
   const shareLink = () => baseUrl() + '?defi=' + encodeDraft();
 
   function textList() {
-    const head = 'Défi' + (draft.title ? ' « ' + draft.title + ' »' : '') + ' : ' + draft.entries.length + ' opening' + (draft.entries.length > 1 ? 's' : '');
+    const head = T('Défi' + (draft.title ? ' « ' + draft.title + ' »' : '') + ' : ' + draft.entries.length + ' opening' + (draft.entries.length > 1 ? 's' : ''));
     const lines = draft.entries.map((e, i) =>
       (i + 1) + '. ' + (e.title || '?') + (e.number ? ' — opening ' + e.number : '') + (e.songTitle ? ' (' + e.songTitle + ')' : '')
       + ' · début ' + fmt(e.start) + ' s · ' + fmt(e.length) + ' s');
@@ -544,10 +546,12 @@
     const n = pending.e.length;
     const secs = pending.e.map((x) => x[2] / 10);
     const same = secs.every((s) => s === secs[0]);
-    $('ch-play-info').textContent = n + ' opening' + (n > 1 ? 's' : '') + ' à deviner · '
-      + (same ? 'extraits de ' + fmt(secs[0]) + ' s' : 'extraits de ' + fmt(Math.min(...secs)) + ' à ' + fmt(Math.max(...secs)) + ' s')
-      + ' · ' + (pending.n ? 'anime + numéro' : 'anime seulement')
-      + ' · indices ' + (pending.h ? 'autorisés' : 'désactivés');
+    $('ch-play-info').textContent = [
+      T(n + ' opening' + (n > 1 ? 's' : '')) + ' ' + T('à deviner'),
+      T(same ? 'extraits de ' + fmt(secs[0]) + ' s' : 'extraits de ' + fmt(Math.min(...secs)) + ' à ' + fmt(Math.max(...secs)) + ' s'),
+      T(pending.n ? 'anime + numéro' : 'anime seulement'),
+      T('indices ' + (pending.h ? 'autorisés' : 'désactivés'))
+    ].join(' · ');
   }
 
   function multiBusy() { return OQ.mp.active || (OQ.multiBusy && OQ.multiBusy()); }
@@ -637,7 +641,7 @@
     const played = C.results.filter((r) => r.verdict !== 'skip');
     const found = played.filter((r) => r.verdict === 'correct').length;
     const max = played.length * 3;
-    return 'Défi' + (C.def.title ? ' « ' + C.def.title + ' »' : '') + ' : ' + C.pts + '/' + max + ' pts · ' + found + '/' + played.length + ' trouvés\n'
+    return T('Défi' + (C.def.title ? ' « ' + C.def.title + ' »' : '') + ' : ' + C.pts + '/' + max + ' pts · ' + found + '/' + played.length + ' trouvés') + '\n'
       + C.results.map((r) => EMOJI[r.verdict]).join('') + '\n' + baseUrl();
   }
 
