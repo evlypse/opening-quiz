@@ -386,6 +386,7 @@
     }
 
     S.phase = 'playing';
+    OQ.mp.revealed = false;
     broadcast({ t: 'round', n: S.n, total: S.total, info: OQ.serializeInfo(info) });
     afterAnswer();                                               // met à jour le compteur (0/N)
   }
@@ -431,6 +432,7 @@
 
   function applyReveal(results, last) {
     S.phase = 'reveal';
+    OQ.mp.revealed = true;
     // Si on n'avait pas encore répondu (révélation forcée), on abandonne en silence
     if (!OQ.isAnswered()) {
       const keep = OQ.mp.onAnswer;
@@ -556,7 +558,7 @@
         renderBar();
         break;
       case 'round':
-        S.n = msg.n; S.total = msg.total; S.phase = 'playing'; S.progress = null;
+        S.n = msg.n; S.total = msg.total; S.phase = 'playing'; S.progress = null; OQ.mp.revealed = false;
         renderBar();
         OQ.guestRound(OQ.deserializeInfo(msg.info));
         break;

@@ -36,7 +36,7 @@
   // formats ni les versions doublées. (Ce sont eux qui faussaient la numérotation.)
   const BAD_FORMATS = new Set(['movie', 'ova', 'special', 'tv short']);
   const BAD_GROUP = /dub|english|latin|german|french|spanish|korean|chinese|italian|portuguese|russian|arabic|hindi|tagalog/i;
-  const EXTRA_NAME = /\b(movie|film|gekijouban|eiga|ova|oad|specials?|recap|picture drama)\b/i;
+  const EXTRA_NAME = /\b(movie|film|gekijouban|eiga|ova|oad|specials?|recap|picture drama|tensura nikki|coleus no yume)\b/i;
 
   const SEASON_FR = { winter: 'Hiver', spring: 'Printemps', summer: 'Été', fall: 'Automne' };
   const TIER_LABEL = { easy: 'Facile', medium: 'Moyen', hard: 'Difficile' };
@@ -323,7 +323,20 @@
   let currentOpts = {};      // réglages du round en cours (pour précharger le suivant)
 
   // Crochets utilisés par le mode multijoueur (js/multi.js)
-  const mp = { active: false, onAnswer: null, onNext: null, onPrefetched: null };
+  const mp = { active: false, revealed: false, onAnswer: null, onNext: null, onPrefetched: null };
+
+  // Volume des vidéos (plus bas que le son du jeu par défaut), retenu d'une vidéo à l'autre
+  let videoVol = 0.25;
+  try { const sv = parseFloat(localStorage.getItem('opening-quiz-video-volume')); if (sv >= 0 && sv <= 1) videoVol = sv; } catch (e) { /* ignoré */ }
+  function bindVideoVolume(v) {
+    v.volume = videoVol;
+    v.addEventListener('volumechange', () => {
+      if (v.muted) return;
+      videoVol = v.volume;
+      try { localStorage.setItem('opening-quiz-video-volume', String(videoVol)); } catch (e) { /* ignoré */ }
+    });
+  }
+  bindVideoVolume(resVideo);
   // (js/challenge.js réutilise ces mêmes crochets : un défi se joue comme une partie à un seul joueur)
 
   const recent = [];                 // derniers animes joués
@@ -858,11 +871,12 @@
 
     let url = null;
     let video = null;
-    (theme.animethemeentries || []).forEach((entry) => {
-      if (entry.nsfw) return;                      // on ignore les versions NSFW
+    // On préfère les versions non NSFW, puis sans crédits ; si tout est NSFW, on prend quand même (son + vidéo)
+    const entries = (theme.animethemeentries || []).slice().sort((a, b) => (a.nsfw ? 1 : 0) - (b.nsfw ? 1 : 0));
+    entries.forEach((entry) => {
       (entry.videos || []).forEach((v) => {
         if (!url && v.audio && v.audio.link) url = v.audio.link;
-        if (v.link && (!video || (v.nc && !video.nc))) video = v;   // on préfère la version sans crédits
+        if (v.link && (!video || (v.nc && !video.nc && !!video.nsfwEntry === !!entry.nsfw))) { video = v; video.nsfwEntry = !!entry.nsfw; }
       });
     });
     if (!url) return null;
@@ -1828,6 +1842,11 @@
     const hints = lettersShown ? 2 : (usedFull ? 1 : 0);      // 0 aucun indice, 1 opening entier, 2 initiales
     lastVerdict = { ...judge(guess, num, gaveUp), hints };
 
+    if (mp.active && mp.revealed) {
+      // La révélation est déjà passée (chargement lent de cet opening) : on affiche le résultat tout de suite
+      showResult();
+      return;
+    }
     if (mp.active) {
       // Multijoueur : on garde la réponse pour soi jusqu'à ce que tout le monde ait validé
       waitMsg.textContent = 'Réponse envoyée. En attente des autres joueurs…';
@@ -1903,7 +1922,7 @@
     entryFromRound,
     mp,
     // Multijoueur
-    hostRound, guestRound, prepareWaiting, showResult, serializeInfo, deserializeInfo, preloadAudio,
+    bindVideoVolume, hostRound, guestRound, prepareWaiting, showResult, serializeInfo, deserializeInfo, preloadAudio,
     enterMulti(settings) {
       mp.active = true;
       document.body.classList.add('is-multi');

@@ -369,7 +369,7 @@
         if (!vurl) throw new Error('pas de vidéo');
         vbox = el('div', 'ch-vid');
         const v = document.createElement('video');
-        v.controls = true; v.playsInline = true; v.preload = 'auto'; v.src = vurl;
+        v.controls = true; v.playsInline = true; v.preload = 'auto'; OQ.bindVideoVolume(v); v.src = vurl;
         v.addEventListener('loadedmetadata', () => { try { v.currentTime = entry.start; } catch (e) { /* ignoré */ } });
         vbox.appendChild(v);
         const bar = el('div', 'ch-vid-bar');

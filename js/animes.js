@@ -55,6 +55,7 @@ const ANIMES = (() => {
     E("Jujutsu Kaisen", "jujutsu_kaisen", { ...P, aliases: ["JJK"] }),
     E("My Hero Academia", "boku_no_hero_academia", { ...P, aliases: ["Boku no Hero Academia", "MHA"] }),
     E("Sword Art Online", "sword_art_online", { ...P, aliases: ["SAO"] }),
+    E("Sword Art Online: Alicization", "sword_art_online_alicization", { ...P, aliases: ["SAO Alicization", "Alicization", "SAO Alicization War of Underworld"] }),
     E("Tokyo Ghoul", "tokyo_ghoul", P),
     E("One Punch Man", "one_punch_man", { aliases: ["OPM"] }),
     E("Fairy Tail", "fairy_tail", P),

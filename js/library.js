@@ -140,6 +140,7 @@
       const v = document.createElement('video');
       v.controls = true;
       v.playsInline = true;
+      OQ.bindVideoVolume(v);
       v.preload = 'auto';
       v.src = row.videoUrl;
       v.addEventListener('play', () => { stopPreview(); OQ.pauseGame(); });
