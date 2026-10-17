@@ -889,3 +889,8 @@ select:focus { outline: none; border-color: var(--v500); box-shadow: 0 0 0 3px v
 .ch-vid video { width: 100%; max-height: 240px; border-radius: var(--r-s); background: #000; }
 .ch-vid-bar { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
 @media (max-width: 520px) { .ch-vid { margin-left: 0; } }
+
+/* Volume de la musique (Bibliothèque) */
+.lib-vol { display: flex; align-items: center; gap: 10px; margin: 8px 0 0; font-size: 0.86rem; font-weight: 600; color: var(--g700); }
+.lib-vol input { flex: 1 1 120px; min-width: 100px; }
+.lib-vol span { min-width: 38px; text-align: right; font-variant-numeric: tabular-nums; font-weight: 500; }

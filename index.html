@@ -9,7 +9,7 @@
   <link rel="icon" href="favicon-32.png" sizes="32x32" type="image/png">
   <link rel="apple-touch-icon" href="apple-touch-icon.png">
   <link rel="manifest" href="site.webmanifest">
-  <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="css/style.css?v=20261019">
 </head>
 <body>
 
@@ -285,6 +285,10 @@
             <button class="lib-chip active" type="button" data-tier="medium">Moyen</button>
             <button class="lib-chip active" type="button" data-tier="hard">Difficile</button>
           </div>
+          <label class="lib-vol" for="lib-vol">🔊 Volume de la musique
+            <input id="lib-vol" type="range" min="0" max="100" value="50" aria-label="Volume de la musique de la bibliothèque">
+            <span id="lib-vol-val">50%</span>
+          </label>
           <p id="lib-info" class="lib-info"></p>
           <div id="lib-list" class="lib-list"></div>
         </section>
@@ -419,18 +423,6 @@
               <span class="mp-label">Indices</span>
               <label class="mp-check"><input id="ch-hints" type="checkbox"> Autorisés (ils rapportent moins de points)</label>
             </div>
-            <div class="mp-row">
-              <label class="mp-label" for="ch-deflen">Durée par défaut</label>
-              <input id="ch-deflen" type="number" min="0.1" max="20" step="0.1" value="5" inputmode="decimal">
-              <small>secondes</small>
-              <button id="ch-apply-len" class="btn secondary mini2" type="button">Appliquer à tous</button>
-            </div>
-            <div class="mp-row">
-              <span class="mp-label">Ajouter au hasard</span>
-              <input id="ch-rand-n" type="number" min="1" max="100" step="1" value="5" inputmode="numeric">
-              <button id="ch-rand" class="btn secondary mini2" type="button">＋ au hasard</button>
-              <small>(selon les difficultés et genres choisis sur la page de jeu)</small>
-            </div>
 
             <h3>Chercher un opening à ajouter</h3>
             <div class="acc-row">
@@ -444,17 +436,13 @@
             <p id="ch-count" class="lib-info"></p>
             <ul id="ch-list" class="ch-list"></ul>
             <div class="mp-actions">
-              <button id="ch-reroll" class="btn secondary mini2" type="button">🎲 Nouveaux départs au hasard</button>
               <button id="ch-clear" class="btn secondary mini2" type="button">Vider le défi</button>
             </div>
 
             <h3>Envoyer à un ami</h3>
             <div class="mp-actions">
               <button id="ch-copy-link" class="btn" type="button">Copier le lien</button>
-              <button id="ch-copy-code" class="btn secondary" type="button">Copier le code</button>
-              <button id="ch-copy-list" class="btn secondary" type="button">Copier la liste</button>
             </div>
-            <p class="acc-note">Le lien et le code contiennent tout le défi. « Copier la liste » donne un texte lisible avec les réponses : à garder pour toi !</p>
             <div class="mp-row">
               <input id="ch-import" type="text" placeholder="coller un code ou un lien de défi (pour le rouvrir ici)" autocomplete="off" spellcheck="false">
               <button id="ch-import-btn" class="btn secondary" type="button">Importer</button>
@@ -506,15 +494,15 @@
     </div>
   </div>
 
-  <script src="js/animes.js"></script>
-  <script src="js/genres.js"></script>
-  <script src="js/overrides.js"></script>
-  <script src="js/app.js"></script>
-  <script src="js/lists.js"></script>
-  <script src="js/library.js"></script>
-  <script src="js/genre-ui.js"></script>
-  <script src="js/challenge.js"></script>
-  <script src="js/multi.js"></script>
-  <script src="js/fx.js"></script>
+  <script src="js/animes.js?v=20261019"></script>
+  <script src="js/genres.js?v=20261019"></script>
+  <script src="js/overrides.js?v=20261019"></script>
+  <script src="js/app.js?v=20261019"></script>
+  <script src="js/lists.js?v=20261019"></script>
+  <script src="js/library.js?v=20261019"></script>
+  <script src="js/genre-ui.js?v=20261019"></script>
+  <script src="js/challenge.js?v=20261019"></script>
+  <script src="js/multi.js?v=20261019"></script>
+  <script src="js/fx.js?v=20261019"></script>
 </body>
 </html>

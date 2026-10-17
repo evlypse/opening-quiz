@@ -326,14 +326,14 @@
   const mp = { active: false, revealed: false, onAnswer: null, onNext: null, onPrefetched: null };
 
   // Volume des vidéos (plus bas que le son du jeu par défaut), retenu d'une vidéo à l'autre
-  let videoVol = 0.25;
-  try { const sv = parseFloat(localStorage.getItem('opening-quiz-video-volume')); if (sv >= 0 && sv <= 1) videoVol = sv; } catch (e) { /* ignoré */ }
+  let videoVol = 0.5;
+  try { const sv = parseFloat(localStorage.getItem('opening-quiz-video-volume-v2')); if (sv >= 0 && sv <= 1) videoVol = sv; } catch (e) { /* ignoré */ }
   function bindVideoVolume(v) {
     v.volume = videoVol;
     v.addEventListener('volumechange', () => {
       if (v.muted) return;
       videoVol = v.volume;
-      try { localStorage.setItem('opening-quiz-video-volume', String(videoVol)); } catch (e) { /* ignoré */ }
+      try { localStorage.setItem('opening-quiz-video-volume-v2', String(videoVol)); } catch (e) { /* ignoré */ }
     });
   }
   bindVideoVolume(resVideo);

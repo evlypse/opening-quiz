@@ -79,6 +79,19 @@
     pAudio.pause();
     if (pBtn) { pBtn.textContent = '▶'; pBtn = null; }
   }
+  // Volume de la musique : réglable depuis la Bibliothèque (vaut aussi pour les écoutes des Listes)
+  const libVol = $('lib-vol');
+  let pVol = 50;
+  try { const sv = parseInt(localStorage.getItem('opening-quiz-preview-volume'), 10); if (sv >= 0 && sv <= 100) pVol = sv; } catch (e) { /* ignoré */ }
+  pAudio.volume = pVol / 100;
+  libVol.value = String(pVol);
+  $('lib-vol-val').textContent = pVol + '%';
+  libVol.addEventListener('input', () => {
+    pVol = Number(libVol.value);
+    pAudio.volume = pVol / 100;
+    $('lib-vol-val').textContent = pVol + '%';
+    try { localStorage.setItem('opening-quiz-preview-volume', String(pVol)); } catch (e) { /* ignoré */ }
+  });
   pAudio.addEventListener('ended', stopPreview);
   document.addEventListener('oq:gameaudio', stopPreview);
 

@@ -61,7 +61,7 @@
         d.title = String(o.title || '').slice(0, 40);
         d.guessNumber = o.guessNumber !== false;
         d.hints = !!o.hints;
-        if (Number.isFinite(o.defLength)) d.defLength = clamp(round1(o.defLength), 0.1, 20);
+        // la durée par défaut n'est plus réglable : elle suit toujours la durée du jeu
         if (Array.isArray(o.entries)) {
           o.entries.slice(0, MAX_ENTRIES).forEach((e) => {
             if (!e || !Number.isFinite(Number(e.id))) return;
@@ -213,8 +213,6 @@
   async function addRandom(n) {
     if (rowBusy) return;
     rowBusy = true;
-    const btn = $('ch-rand');
-    btn.disabled = true;
     const msg = $('ch-msg');
     let added = 0;
     try {
@@ -234,7 +232,6 @@
       msg.textContent = added ? added + ' opening' + (added > 1 ? 's' : '') + ' ajouté' + (added > 1 ? 's' : '') + '.' : 'Impossible d\'ajouter des openings (connexion ?).';
     } finally {
       rowBusy = false;
-      btn.disabled = false;
     }
   }
 
@@ -245,7 +242,6 @@
     $('ch-title').value = draft.title;
     $('ch-number').checked = draft.guessNumber;
     $('ch-hints').checked = draft.hints;
-    $('ch-deflen').value = String(draft.defLength);
 
     const ul = $('ch-list');
     ul.textContent = '';
@@ -253,7 +249,7 @@
     $('ch-count').textContent = n
       ? n + ' opening' + (n > 1 ? 's' : '') + ' dans le défi'
       : 'Aucun opening pour l\'instant. Ajoute-en avec le bouton ⚔ (Bibliothèque, Listes) ou au hasard.';
-    ['ch-copy-link', 'ch-copy-code', 'ch-copy-list', 'ch-clear'].forEach((id) => { $(id).disabled = !n; });
+    ['ch-copy-link', 'ch-clear'].forEach((id) => { $(id).disabled = !n; });
 
     draft.entries.forEach((e, i) => ul.appendChild(buildRow(e, i)));
   }
@@ -690,38 +686,8 @@
   $('ch-title').addEventListener('input', () => { draft.title = $('ch-title').value.slice(0, 40); save(); });
   $('ch-number').addEventListener('change', () => { draft.guessNumber = $('ch-number').checked; save(); });
   $('ch-hints').addEventListener('change', () => { draft.hints = $('ch-hints').checked; save(); });
-  $('ch-deflen').addEventListener('change', () => {
-    const v = num($('ch-deflen').value);
-    draft.defLength = clamp(round1(Number.isFinite(v) ? v : 5), 0.1, 20);
-    $('ch-deflen').value = String(draft.defLength);
-    save();
-  });
-  $('ch-apply-len').addEventListener('click', () => {
-    draft.entries.forEach((e) => { e.length = draft.defLength; });
-    save();
-    renderBuilder();
-  });
-  $('ch-reroll').addEventListener('click', async () => {
-    const btn = $('ch-reroll');
-    btn.disabled = true;
-    for (const e of draft.entries) {
-      try {
-        const m = await enqueue(() => ensureMedia(e));
-        if (m.dur) randomStart(e, m.dur);
-      } catch (err) { /* on passe */ }
-    }
-    btn.disabled = false;
-    renderBuilder();
-  });
-  $('ch-rand').addEventListener('click', () => {
-    const n = clamp(parseInt($('ch-rand-n').value, 10) || 5, 1, MAX_ENTRIES);
-    $('ch-rand-n').value = String(n);
-    addRandom(n);
-  });
 
   $('ch-copy-link').addEventListener('click', () => copy(shareLink(), $('ch-copy-link'), 'Copier le lien'));
-  $('ch-copy-code').addEventListener('click', () => copy(encodeDraft(), $('ch-copy-code'), 'Copier le code'));
-  $('ch-copy-list').addEventListener('click', () => copy(textList(), $('ch-copy-list'), 'Copier la liste'));
   $('ch-clear').addEventListener('click', () => {
     if (!draft.entries.length || !window.confirm('Vider le défi en cours de création ?')) return;
     stopTest();
