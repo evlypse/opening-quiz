@@ -897,3 +897,27 @@ select:focus { outline: none; border-color: var(--v500); box-shadow: 0 0 0 3px v
 
 /* Choix de la langue */
 .lang-select { width: auto; min-width: 0; height: 38px; padding: 0 28px 0 10px; font-size: 0.85rem; font-weight: 600; cursor: pointer; }
+
+/* Défis : interface plus compacte et plus lisible */
+#tab-challenge .ch-block { gap: 8px; }
+#tab-challenge .acc-note { margin: 0; font-size: 0.84rem; line-height: 1.4; }
+#tab-challenge .mp-row { gap: 4px 10px; }
+#tab-challenge .mp-label { min-width: 110px; font-size: 0.9rem; }
+#tab-challenge .mp-check { font-size: 0.9rem; }
+.ch-block h3 { margin: 10px 0 0; padding-bottom: 4px; border-bottom: 1px solid var(--g200); font-size: 0.8rem; }
+.ch-block .lib-info { margin: 0; font-size: 0.85rem; }
+.ch-qres { max-height: 230px; overflow-x: hidden; overflow-y: auto; margin-bottom: 4px; }
+.ch-qres .lib-list, .ch-qres .lib-item { min-width: 0; }
+.ch-qres .lib-item { margin-bottom: 4px; }
+.ch-qres .lib-item > summary { padding: 6px 10px; font-size: 0.9rem; }
+.ch-qres .lib-rows { padding: 2px 8px 4px; }
+.ch-qres .lib-row { flex-wrap: nowrap; padding: 4px 2px; }
+.ch-qres .lib-num { min-width: 28px; font-size: 0.9rem; }
+.ch-qres .lib-song b { font-size: 0.92rem; }
+.lib-song small { font-size: 0.8rem; color: var(--g700); }
+.ch-qres .btn.mini, #tab-challenge .lib-row .btn.mini.add { width: auto; min-width: 0; padding: 0 10px; white-space: nowrap; font-size: 0.82rem; }
+.ch-row { padding: 6px 2px; }
+.ch-ctrl { margin-top: 4px; gap: 4px 12px; }
+.ch-lbl { font-size: 0.85rem; }
+.ch-lbl input { width: 70px; padding: 4px 6px; }
+.ch-top b { font-size: 0.95rem; }
