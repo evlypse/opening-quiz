@@ -41,7 +41,7 @@
   });
 
   /* ---------- Affichage ---------- */
-  const views = ['tn-start', 'tn-load', 'tn-match', 'tn-end'];
+  const views = ['tn-start', 'tn-load', 'tn-match', 'tn-between', 'tn-end'];
   function show(id) { views.forEach((v) => $(v).classList.toggle('hidden', v !== id)); window.scrollTo(0, 0); }
 
   /* ---------- Chargement des openings ---------- */
@@ -157,8 +157,32 @@
   const sides = [0, 1].map((i) => {
     const card = $(i ? 'tn-card-b' : 'tn-card-a');
     card.querySelector('.tn-pick').addEventListener('click', () => choose(i));
+    card.querySelector('.tn-reload').addEventListener('click', () => {
+      const v = pair && pair[i] && pair[i].audio;
+      if (!v) return;
+      const t = v.currentTime;
+      v.load();
+      v.addEventListener('loadedmetadata', () => { try { v.currentTime = t; } catch (e) { /* ignoré */ } }, { once: true });
+      watch(v);
+    });
     return { card };
   });
+
+  // Une vidéo qui n'a pas fini de se charger est relancée toute seule (jusqu'à 4 fois), ou avec le bouton « Recharger »
+  function watch(v) {
+    let tries = 0;
+    clearTimeout(v._wd);
+    const check = () => {
+      const stuck = !Number.isFinite(v.duration) || v.readyState < 2 || !!v.error;
+      if (!stuck || tries >= 4 || $('tn-match').classList.contains('hidden')) return;
+      tries++;
+      const t = v.currentTime;
+      v.load();
+      v.addEventListener('loadedmetadata', () => { try { v.currentTime = t; } catch (e) { /* ignoré */ } }, { once: true });
+      v._wd = setTimeout(check, 7000);
+    };
+    v._wd = setTimeout(check, 7000);
+  }
 
   function showPair() {
     stopAll();
@@ -172,21 +196,35 @@
       const box = s.card.querySelector('.tn-vid');
       box.textContent = '';
       box.appendChild(s.audio);
+      watch(s.audio);
     });
     show('tn-match');
   }
+
+  let afterPick = null;
 
   function choose(i) {
     stopAll();
     history.push({ round: ROUND_NAMES[current.length / 2] || 'Duel', a: pair[0], b: pair[1], win: i });
     next.push(pair[i]);
+    // Révélation du duel qui vient d'être joué (les autres restent cachés)
+    const res = $('tn-between-res');
+    res.textContent = '';
+    line(res, pair[i], true);
+    line(res, pair[1 - i], false);
     pairIdx++;
+    let label = 'Duel suivant ➜';
     if (pairIdx * 2 >= current.length) {
-      if (next.length === 1) { finish(next[0]); return; }
-      current = next; next = []; pairIdx = 0;
-    }
-    showPair();
+      if (next.length === 1) { const champ = next[0]; afterPick = () => finish(champ); label = 'Voir le résultat ➜'; }
+      else { afterPick = () => { current = next; next = []; pairIdx = 0; showPair(); }; label = 'Tour suivant ➜'; }
+    } else afterPick = showPair;
+    $('tn-between-title').textContent = i ? '✓ Opening B gagne' : '✓ Opening A gagne';
+    $('tn-between-sub').textContent = label === 'Voir le résultat ➜' ? 'C\'était la finale !' : (label === 'Tour suivant ➜' ? 'Fin du tour : les vainqueurs passent à la suite.' : 'Il passe au tour suivant.');
+    $('tn-between-next').textContent = label;
+    show('tn-between');
+    $('tn-between-next').focus();
   }
+  $('tn-between-next').addEventListener('click', () => { if (afterPick) { const f = afterPick; afterPick = null; f(); } });
 
   /* ---------- Fin : révélation ---------- */
   function line(parent, it, win) {

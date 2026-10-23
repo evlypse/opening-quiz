@@ -1926,11 +1926,11 @@ window.I18N_ROWS = [
 "← Zurück zum Quiz"
 ],
 [
-"16 openings au hasard, cachés. Ils s'affrontent en duels : écoute les deux et choisis ton préféré, jusqu'à la finale. Les titres ne sont révélés qu'à la fin.",
-"16 random hidden openings face off in duels: listen to both and pick your favorite, all the way to the final. Titles are only revealed at the end.",
-"16 openings al azar, ocultos. Se enfrentan en duelos: escucha los dos y elige tu favorito, hasta la final. Los títulos solo se revelan al final.",
-"16 openings aleatórios, escondidos. Eles se enfrentam em duelos: ouça os dois e escolha o seu favorito, até a final. Os títulos só são revelados no fim.",
-"16 zufällige, versteckte Openings treten in Duellen gegeneinander an: Hör dir beide an und wähle deinen Favoriten, bis zum Finale. Die Titel werden erst am Ende verraten."
+"16 openings au hasard, cachés. Ils s'affrontent en duels : écoute les deux et choisis ton préféré, jusqu'à la finale. Après chaque choix, le duel est révélé.",
+"16 random hidden openings face off in duels: listen to both and pick your favorite, all the way to the final. After each pick, the duel is revealed.",
+"16 openings al azar, ocultos. Se enfrentan en duelos: escucha los dos y elige tu favorito, hasta la final. Tras cada elección, se revela el duelo.",
+"16 openings aleatórios, escondidos. Eles se enfrentam em duelos: ouça os dois e escolha o seu favorito, até a final. Depois de cada escolha, o duelo é revelado.",
+"16 zufällige, versteckte Openings treten in Duellen gegeneinander an: Hör dir beide an und wähle deinen Favoriten, bis zum Finale. Nach jeder Wahl wird das Duell enthüllt."
 ],
 [
 "Lancer le tournoi",
@@ -2057,6 +2057,69 @@ window.I18N_ROWS = [
 "No se pudieron preparar 16 openings (¿conexión?). Inténtalo de nuevo en un momento.",
 "Não foi possível preparar 16 openings (conexão?). Tente de novo em instantes.",
 "16 Openings konnten nicht vorbereitet werden (Verbindung?). Versuch es gleich noch einmal."
+],
+[
+"↻ Recharger la vidéo",
+"↻ Reload the video",
+"↻ Recargar el vídeo",
+"↻ Recarregar o vídeo",
+"↻ Video neu laden"
+],
+[
+"✓ Opening A gagne",
+"✓ Opening A wins",
+"✓ Gana el opening A",
+"✓ O opening A vence",
+"✓ Opening A gewinnt"
+],
+[
+"✓ Opening B gagne",
+"✓ Opening B wins",
+"✓ Gana el opening B",
+"✓ O opening B vence",
+"✓ Opening B gewinnt"
+],
+[
+"Il passe au tour suivant.",
+"It moves on to the next round.",
+"Pasa a la siguiente ronda.",
+"Ele passa para a próxima fase.",
+"Er kommt eine Runde weiter."
+],
+[
+"Fin du tour : les vainqueurs passent à la suite.",
+"End of the round: the winners move on.",
+"Fin de la ronda: los ganadores pasan a la siguiente.",
+"Fim da fase: os vencedores avançam.",
+"Ende der Runde: Die Gewinner kommen weiter."
+],
+[
+"C'était la finale !",
+"That was the final!",
+"¡Era la final!",
+"Era a final!",
+"Das war das Finale!"
+],
+[
+"Duel suivant ➜",
+"Next duel ➜",
+"Siguiente duelo ➜",
+"Próximo duelo ➜",
+"Nächstes Duell ➜"
+],
+[
+"Tour suivant ➜",
+"Next round ➜",
+"Siguiente ronda ➜",
+"Próxima fase ➜",
+"Nächste Runde ➜"
+],
+[
+"Voir le résultat ➜",
+"See the result ➜",
+"Ver el resultado ➜",
+"Ver o resultado ➜",
+"Ergebnis ansehen ➜"
 ],
 [
 "📅 Années :",

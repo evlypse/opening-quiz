@@ -971,3 +971,8 @@ select:focus { outline: none; border-color: var(--v500); box-shadow: 0 0 0 3px v
   .top, main, .nav, .foot { max-width: 1040px; }
   .panel-box { width: min(920px, 100%); }
 }
+.tn-reload { align-self: flex-start; }
+.tn-between { text-align: center; align-items: center; padding: 24px 16px; animation: pop 0.3s ease both; }
+.tn-between h2 { margin: 0; font-size: 1.5rem; color: var(--v700); }
+.tn-between .tn-actions { justify-content: center; }
+.tn-between-res { width: 100%; max-width: 640px; border: 1px solid var(--g200); border-radius: var(--r-s); padding: 10px 14px; text-align: left; font-size: 1rem; }
