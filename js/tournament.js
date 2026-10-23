@@ -86,14 +86,15 @@
     return new Promise((resolve) => {
       const a = document.createElement('video');
       a.preload = 'metadata';
+      a.controls = true;
       a.playsInline = true;
       a.volume = 0.5;
       let done = false;
       const end = (v) => { if (done) return; done = true; clearTimeout(timer); resolve(v ? a : null); };
-      const timer = setTimeout(() => { lastFail = 'média trop lent'; end(false); }, 15000);
+      const timer = setTimeout(() => { lastFail = 'média trop lent'; end(false); }, 25000);
       a.addEventListener('loadedmetadata', () => end(true));
       a.addEventListener('error', () => { lastFail = 'média code ' + (a.error ? a.error.code : '?'); end(false); });
-      a.addEventListener('click', () => { if (a.paused) a.play().catch(() => {}); else a.pause(); });
+      a.addEventListener('play', () => { items.forEach((it) => { if (it.audio !== a) it.audio.pause(); }); });   // un seul à la fois
       a.src = url;
       a.load();
     });
@@ -127,8 +128,6 @@
           const song = c.t.song || null;
           const artists = song && Array.isArray(song.artists) ? song.artists.map((a) => a.name).filter(Boolean) : [];
           const m = /(\d+)/.exec(c.t.slug || '');
-          const d = audio.duration;
-          if (Number.isFinite(d) && d > 20) audio.currentTime = Math.random() * Math.max(0, d - 20);   // départ au hasard
           got.push({ anime: f.title, song: song ? song.title : '', artists, num: m ? Number(m[1]) : 1, url: c.url, audio });
           setProgress();
         } catch (e) { fails++; if (!lastFail) lastFail = 'API injoignable'; await sleep(400); }
@@ -150,35 +149,11 @@
 
   function stopAll() { items.forEach((it) => it.audio.pause()); }
 
-  function fmt(s) { s = Math.max(0, Math.floor(s || 0)); return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0'); }
-
   const sides = [0, 1].map((i) => {
     const card = $(i ? 'tn-card-b' : 'tn-card-a');
-    return { card, play: card.querySelector('.tn-play'), seek: card.querySelector('.tn-seek'), time: card.querySelector('.tn-time'), audio: null };
+    card.querySelector('.tn-pick').addEventListener('click', () => choose(i));
+    return { card };
   });
-
-  function refreshSide(s) {
-    const a = s.audio;
-    if (!a) return;
-    const d = a.duration || 0;
-    if (document.activeElement !== s.seek) s.seek.value = d ? Math.round(a.currentTime / d * 1000) : 0;
-    s.time.textContent = fmt(a.currentTime) + ' / ' + fmt(d);
-    s.play.textContent = a.paused ? '▶ Écouter' : '⏸ Pause';
-  }
-
-  sides.forEach((s, i) => {
-    s.play.addEventListener('click', () => {
-      if (!s.audio) return;
-      if (s.audio.paused) { sides[1 - i].audio && sides[1 - i].audio.pause(); s.audio.play().catch(() => {}); } else s.audio.pause();
-      refreshSide(s); refreshSide(sides[1 - i]);
-    });
-    s.seek.addEventListener('input', () => {
-      if (s.audio && s.audio.duration) { s.audio.currentTime = s.seek.value / 1000 * s.audio.duration; refreshSide(s); }
-    });
-    s.card.querySelector('.tn-pick').addEventListener('click', () => choose(i));
-  });
-
-  setInterval(() => { if (!$('tn-match').classList.contains('hidden')) sides.forEach(refreshSide); }, 250);
 
   function showPair() {
     stopAll();
@@ -188,10 +163,10 @@
     sides.forEach((s, i) => {
       s.audio = pair[i].audio;
       s.audio.preload = 'auto';
+      s.audio.currentTime = 0;
       const box = s.card.querySelector('.tn-vid');
       box.textContent = '';
       box.appendChild(s.audio);
-      refreshSide(s);
     });
     show('tn-match');
   }
@@ -225,10 +200,6 @@
     const cbox = $('tn-champ-vid');
     cbox.textContent = '';
     cbox.appendChild(champ.audio);
-    const cp = $('tn-champ-play');
-    cp.onclick = () => { if (champ.audio.paused) champ.audio.play().catch(() => {}); else champ.audio.pause(); cp.textContent = champ.audio.paused ? '▶ Écouter' : '⏸ Pause'; };
-    cp.textContent = '▶ Écouter';
-    champ.audio.onended = () => { cp.textContent = '▶ Écouter'; };
     const recap = $('tn-recap');
     recap.textContent = '';
     let last = '';
