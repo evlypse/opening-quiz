@@ -959,3 +959,15 @@ select:focus { outline: none; border-color: var(--v500); box-shadow: 0 0 0 3px v
 .tn-vid-champ { width: 100%; max-width: 460px; }
 .tn-vid:empty { display: none; }
 .tn-vid video { max-height: none; }
+
+/* Grands écrans (pas les téléphones) : interface un peu plus grande */
+@media (min-width: 900px) {
+  html { font-size: 20px; }
+  .top, main, .nav, .foot { max-width: 960px; }
+  .panel-box { width: min(860px, 100%); }
+}
+@media (min-width: 1500px) {
+  html { font-size: 21px; }
+  .top, main, .nav, .foot { max-width: 1040px; }
+  .panel-box { width: min(920px, 100%); }
+}

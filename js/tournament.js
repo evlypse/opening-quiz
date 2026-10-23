@@ -67,15 +67,18 @@
     const ok = [];
     (anime.animethemes || []).forEach((t) => {
       if (t.type !== 'OP' || OV_EXCLUDED.has(Number(t.id)) || (t.group && BAD_GROUP.test(t.group))) return;
-      let video = null, audio = null;
-      // versions non NSFW d'abord ; on préfère la vidéo sans crédits (moins de spoil)
-      const entries = (t.animethemeentries || []).slice().sort((a, b) => (a.nsfw ? 1 : 0) - (b.nsfw ? 1 : 0));
-      entries.forEach((e) => (e.videos || []).forEach((v) => {
-        if (v.link && (!video || (v.nc && !video.nc))) video = v;
+      const vids = [];
+      let audio = null;
+      // Toutes les versions vidéo, de la plus « propre » à la moins : non NSFW d'abord, sans crédits d'abord
+      // (les versions NSFW sont gardées en dernier recours, comme sur le site de base)
+      (t.animethemeentries || []).forEach((e) => (e.videos || []).forEach((v) => {
+        if (v.link) vids.push({ url: v.link, rank: (e.nsfw ? 2 : 0) + (v.nc ? 0 : 1) });
         if (!audio && v.audio && v.audio.link) audio = v.audio.link;
       }));
-      const url = video ? video.link : audio;
-      if (url) ok.push({ t, url, audioUrl: audio });
+      vids.sort((x, y) => x.rank - y.rank);
+      const urls = vids.map((v) => v.url).filter((u, i, arr) => arr.indexOf(u) === i).slice(0, 4);
+      if (audio) urls.push(audio);                       // dernier recours : le son seul
+      if (urls.length) ok.push({ t, urls, audioUrl: audio, hasVideo: vids.length > 0 });
     });
     return ok.length ? ok[Math.floor(Math.random() * ok.length)] : null;
   }
@@ -91,7 +94,7 @@
       a.volume = 0.5;
       let done = false;
       const end = (v) => { if (done) return; done = true; clearTimeout(timer); resolve(v ? a : null); };
-      const timer = setTimeout(() => { lastFail = 'média trop lent'; end(false); }, 25000);
+      const timer = setTimeout(() => { lastFail = 'média trop lent'; end(false); }, 12000);
       a.addEventListener('loadedmetadata', () => end(true));
       a.addEventListener('error', () => { lastFail = 'média code ' + (a.error ? a.error.code : '?'); end(false); });
       a.addEventListener('play', () => { items.forEach((it) => { if (it.audio !== a) it.audio.pause(); }); });   // un seul à la fois
@@ -120,15 +123,17 @@
           if (id !== runId) return;
           const c = anime ? pickTheme(anime) : null;
           if (!c) continue;
-          let audio = await loadAudio(c.url);
-          if (!audio && c.audioUrl && c.audioUrl !== c.url) audio = await loadAudio(c.audioUrl);   // repli : son seul
+          let audio = null, usedUrl = '';
+          for (const u of c.urls) { audio = await loadAudio(u); usedUrl = u; if (audio || id !== runId) break; }
+          // Son seul (pas de vidéo, ou elle ne charge pas) : on préfère un autre anime, sauf si on en manque
+          if (audio && usedUrl === c.audioUrl && cursor < order.length - 25) { audio = null; continue; }
           if (id !== runId) return;
           if (!audio) { fails++; continue; }
           if (got.length >= SIZE) return;
           const song = c.t.song || null;
           const artists = song && Array.isArray(song.artists) ? song.artists.map((a) => a.name).filter(Boolean) : [];
           const m = /(\d+)/.exec(c.t.slug || '');
-          got.push({ anime: f.title, song: song ? song.title : '', artists, num: m ? Number(m[1]) : 1, url: c.url, audio });
+          got.push({ anime: f.title, song: song ? song.title : '', artists, num: m ? Number(m[1]) : 1, url: c.urls[0], audio });
           setProgress();
         } catch (e) { fails++; if (!lastFail) lastFail = 'API injoignable'; await sleep(400); }
       }
