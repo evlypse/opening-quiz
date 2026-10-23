@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#f4f4f8">
+  <title>Tournoi d'openings</title>
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <link rel="icon" href="favicon-32.png" sizes="32x32" type="image/png">
+  <link rel="apple-touch-icon" href="apple-touch-icon.png">
+  <link rel="stylesheet" href="css/style.css?v=20261025">
+</head>
+<body>
+
+  <div class="deco" aria-hidden="true">
+    <span></span><span></span><span></span><span></span><span></span><span></span>
+  </div>
+
+  <header class="top">
+    <div class="brand">
+      <h1>Tournoi d'openings</h1>
+    </div>
+    <div class="top-right">
+      <select id="lang-select" class="lang-select" aria-label="Langue"></select>
+      <a class="btn secondary" href="index.html">← Retour au quiz</a>
+    </div>
+  </header>
+
+  <main>
+
+    <!-- Accueil -->
+    <section id="tn-start" class="card tn-box">
+      <p class="tn-intro">16 openings au hasard, cachés. Ils s'affrontent en duels : écoute les deux et choisis ton préféré, jusqu'à la finale. Les titres ne sont révélés qu'à la fin.</p>
+      <div class="tn-opts">
+        <span class="tn-lbl">Difficultés</span>
+        <div class="mode" role="group" aria-label="Difficultés">
+          <button id="tn-easy" class="seg active" type="button" aria-pressed="true">Facile</button>
+          <button id="tn-medium" class="seg active" type="button" aria-pressed="true">Moyen</button>
+          <button id="tn-hard" class="seg active" type="button" aria-pressed="true">Difficile</button>
+        </div>
+      </div>
+      <div class="tn-actions">
+        <button id="tn-go" class="btn big" type="button">Lancer le tournoi</button>
+      </div>
+      <p id="tn-start-msg" class="mp-msg"></p>
+    </section>
+
+    <!-- Préparation -->
+    <section id="tn-load" class="card tn-box hidden">
+      <p id="tn-load-text" class="tn-intro"></p>
+      <div class="tn-bar"><span id="tn-load-bar"></span></div>
+      <button id="tn-cancel" class="btn secondary" type="button">Annuler</button>
+    </section>
+
+    <!-- Duel en cours -->
+    <section id="tn-match" class="tn-box hidden">
+      <div class="tn-head">
+        <h2 id="tn-round"></h2>
+        <span id="tn-count" class="tn-count"></span>
+      </div>
+      <div class="tn-duel">
+        <article class="card tn-card" id="tn-card-a">
+          <h3>Opening A</h3>
+          <div class="tn-vid"></div>
+          <button class="btn big tn-play" type="button" data-side="0">▶ Écouter</button>
+          <input class="tn-seek" type="range" min="0" max="1000" value="0" step="1" aria-label="Position dans l'opening" data-side="0">
+          <div class="tn-time">0:00 / 0:00</div>
+          <button class="btn tn-pick" type="button" data-side="0">Choisir A</button>
+        </article>
+        <article class="card tn-card" id="tn-card-b">
+          <h3>Opening B</h3>
+          <div class="tn-vid"></div>
+          <button class="btn big tn-play" type="button" data-side="1">▶ Écouter</button>
+          <input class="tn-seek" type="range" min="0" max="1000" value="0" step="1" aria-label="Position dans l'opening" data-side="1">
+          <div class="tn-time">0:00 / 0:00</div>
+          <button class="btn tn-pick" type="button" data-side="1">Choisir B</button>
+        </article>
+      </div>
+      <div class="tn-actions">
+        <button id="tn-quit" class="btn secondary mini2" type="button">Abandonner le tournoi</button>
+      </div>
+    </section>
+
+    <!-- Fin -->
+    <section id="tn-end" class="tn-box hidden">
+      <div class="card tn-champ">
+        <h2>🏆 Ton opening préféré</h2>
+        <div id="tn-champ-vid" class="tn-vid tn-vid-champ"></div>
+        <p id="tn-champ-title" class="tn-champ-title"></p>
+        <p id="tn-champ-song" class="tn-champ-song"></p>
+        <button id="tn-champ-play" class="btn" type="button">▶ Écouter</button>
+      </div>
+      <div class="card">
+        <h3 class="tn-h3">Tous les duels</h3>
+        <div id="tn-recap"></div>
+      </div>
+      <div class="tn-actions">
+        <button id="tn-again" class="btn big" type="button">Nouveau tournoi</button>
+        <a class="btn secondary" href="index.html">← Retour au quiz</a>
+      </div>
+    </section>
+
+  </main>
+
+  <script src="js/i18n-data.js?v=20261025"></script>
+  <script src="js/i18n.js?v=20261025"></script>
+  <script src="js/animes.js?v=20261025"></script>
+  <script src="js/overrides.js?v=20261025"></script>
+  <script src="js/tournament.js?v=20261025"></script>
+</body>
+</html>

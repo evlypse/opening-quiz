@@ -530,7 +530,7 @@ window.I18N_ROWS = [
 "Difficulties",
 "Dificultades",
 "Dificuldades",
-"Schwierigkeiten"
+"Schwierigkeitsgrade"
 ],
 [
 "Historique des réponses",
@@ -1905,6 +1905,160 @@ window.I18N_ROWS = [
 "Hinweise aus"
 ],
 [
+"🏆 Tournoi",
+"🏆 Tournament",
+"🏆 Torneo",
+"🏆 Torneio",
+"🏆 Turnier"
+],
+[
+"Tournoi d'openings",
+"Opening tournament",
+"Torneo de openings",
+"Torneio de openings",
+"Opening-Turnier"
+],
+[
+"← Retour au quiz",
+"← Back to the quiz",
+"← Volver al quiz",
+"← Voltar ao quiz",
+"← Zurück zum Quiz"
+],
+[
+"16 openings au hasard, cachés. Ils s'affrontent en duels : écoute les deux et choisis ton préféré, jusqu'à la finale. Les titres ne sont révélés qu'à la fin.",
+"16 random hidden openings face off in duels: listen to both and pick your favorite, all the way to the final. Titles are only revealed at the end.",
+"16 openings al azar, ocultos. Se enfrentan en duelos: escucha los dos y elige tu favorito, hasta la final. Los títulos solo se revelan al final.",
+"16 openings aleatórios, escondidos. Eles se enfrentam em duelos: ouça os dois e escolha o seu favorito, até a final. Os títulos só são revelados no fim.",
+"16 zufällige, versteckte Openings treten in Duellen gegeneinander an: Hör dir beide an und wähle deinen Favoriten, bis zum Finale. Die Titel werden erst am Ende verraten."
+],
+[
+"Lancer le tournoi",
+"Start the tournament",
+"Empezar el torneo",
+"Começar o torneio",
+"Turnier starten"
+],
+[
+"Annuler",
+"Cancel",
+"Cancelar",
+"Cancelar",
+"Abbrechen"
+],
+[
+"Huitièmes de finale",
+"Round of 16",
+"Octavos de final",
+"Oitavas de final",
+"Achtelfinale"
+],
+[
+"Quarts de finale",
+"Quarter-finals",
+"Cuartos de final",
+"Quartas de final",
+"Viertelfinale"
+],
+[
+"Demi-finales",
+"Semi-finals",
+"Semifinales",
+"Semifinais",
+"Halbfinale"
+],
+[
+"Finale",
+"Final",
+"Final",
+"Final",
+"Finale"
+],
+[
+"Opening A",
+"Opening A",
+"Opening A",
+"Opening A",
+"Opening A"
+],
+[
+"Opening B",
+"Opening B",
+"Opening B",
+"Opening B",
+"Opening B"
+],
+[
+"Position dans l'opening",
+"Position in the opening",
+"Posición en el opening",
+"Posição no opening",
+"Position im Opening"
+],
+[
+"Choisir A",
+"Pick A",
+"Elegir A",
+"Escolher A",
+"A wählen"
+],
+[
+"Choisir B",
+"Pick B",
+"Elegir B",
+"Escolher B",
+"B wählen"
+],
+[
+"Abandonner le tournoi",
+"Quit the tournament",
+"Abandonar el torneo",
+"Desistir do torneio",
+"Turnier abbrechen"
+],
+[
+"Abandonner ce tournoi ?",
+"Quit this tournament?",
+"¿Abandonar este torneo?",
+"Desistir deste torneio?",
+"Dieses Turnier abbrechen?"
+],
+[
+"🏆 Ton opening préféré",
+"🏆 Your favorite opening",
+"🏆 Tu opening favorito",
+"🏆 Seu opening favorito",
+"🏆 Dein Lieblings-Opening"
+],
+[
+"Tous les duels",
+"All the duels",
+"Todos los duelos",
+"Todos os duelos",
+"Alle Duelle"
+],
+[
+"Nouveau tournoi",
+"New tournament",
+"Nuevo torneo",
+"Novo torneio",
+"Neues Turnier"
+],
+[
+"Pas assez d'animes avec ces difficultés : coches-en d'autres.",
+"Not enough anime with these difficulties: tick more.",
+"No hay suficientes animes con estas dificultades: marca más.",
+"Não há animes suficientes com essas dificuldades: marque mais.",
+"Nicht genug Animes mit diesen Schwierigkeitsgraden: Hak weitere an."
+],
+[
+"Impossible de préparer 16 openings (connexion ?). Réessaie dans un instant.",
+"Couldn't prepare 16 openings (connection?). Try again in a moment.",
+"No se pudieron preparar 16 openings (¿conexión?). Inténtalo de nuevo en un momento.",
+"Não foi possível preparar 16 openings (conexão?). Tente de novo em instantes.",
+"16 Openings konnten nicht vorbereitet werden (Verbindung?). Versuch es gleich noch einmal."
+],
+[
 "📅 Années :",
 "📅 Years:",
 "📅 Años:",
@@ -2283,6 +2437,34 @@ window.I18N_RULES = [
 "Desafío «$1»: $2",
 "Desafio “$1”: $2",
 "Challenge „$1“: $2"
+],
+[
+"^Préparation des openings… (\\d+) / (\\d+)$",
+"Preparing the openings… $1 / $2",
+"Preparando los openings… $1 / $2",
+"Preparando os openings… $1 / $2",
+"Openings werden vorbereitet… $1 / $2"
+],
+[
+"^opening (\\d+)$",
+"opening $1",
+"opening $1",
+"opening $1",
+"Opening $1"
+],
+[
+"^Duel (\\d+) / (\\d+)$",
+"Duel $1 / $2",
+"Duelo $1 / $2",
+"Duelo $1 / $2",
+"Duell $1 / $2"
+],
+[
+"^(.*) · opening (\\d+)$",
+"$1 · opening $2",
+"$1 · opening $2",
+"$1 · opening $2",
+"$1 · Opening $2"
 ],
 [
 "^depuis (\\d+)$",
