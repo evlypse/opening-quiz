@@ -54,9 +54,9 @@
     const incs = ['animethemes.animethemeentries.videos.audio,animethemes.song.artists', 'animethemes.animethemeentries.videos.audio,animethemes.song'];
     for (const inc of incs) {
       const res = await fetch(`${API}/anime/${encodeURIComponent(slug)}?include=${encodeURIComponent(inc)}`);
-      if (res.status === 429) { await sleep(1500); throw new Error('429'); }
+      if (res.status === 429) { lastFail = 'API 429'; await sleep(1500); throw new Error('429'); }
       if (res.status === 400 || res.status === 422) continue;
-      if (!res.ok) throw new Error('HTTP ' + res.status);
+      if (!res.ok) { lastFail = 'API ' + res.status; throw new Error('HTTP ' + res.status); }
       const data = await res.json();
       return data.anime || null;
     }
@@ -75,12 +75,13 @@
         if (!audio && v.audio && v.audio.link) audio = v.audio.link;
       }));
       const url = video ? video.link : audio;
-      if (url) ok.push({ t, url });
+      if (url) ok.push({ t, url, audioUrl: audio });
     });
     return ok.length ? ok[Math.floor(Math.random() * ok.length)] : null;
   }
 
   // Un élément <video> sert de lecteur (il joue aussi les fichiers audio seuls)
+  let lastFail = '';
   function loadAudio(url) {
     return new Promise((resolve) => {
       const a = document.createElement('video');
@@ -89,9 +90,9 @@
       a.volume = 0.5;
       let done = false;
       const end = (v) => { if (done) return; done = true; clearTimeout(timer); resolve(v ? a : null); };
-      const timer = setTimeout(() => end(false), 15000);
+      const timer = setTimeout(() => { lastFail = 'média trop lent'; end(false); }, 15000);
       a.addEventListener('loadedmetadata', () => end(true));
-      a.addEventListener('error', () => end(false));
+      a.addEventListener('error', () => { lastFail = 'média code ' + (a.error ? a.error.code : '?'); end(false); });
       a.addEventListener('click', () => { if (a.paused) a.play().catch(() => {}); else a.pause(); });
       a.src = url;
       a.load();
@@ -99,6 +100,7 @@
   }
 
   async function prepare(id) {
+    lastFail = '';
     const order = shuffle(usablePool());
     if (order.length < SIZE) throw new Error('pool');
     const got = [];
@@ -117,7 +119,8 @@
           if (id !== runId) return;
           const c = anime ? pickTheme(anime) : null;
           if (!c) continue;
-          const audio = await loadAudio(c.url);
+          let audio = await loadAudio(c.url);
+          if (!audio && c.audioUrl && c.audioUrl !== c.url) audio = await loadAudio(c.audioUrl);   // repli : son seul
           if (id !== runId) return;
           if (!audio) { fails++; continue; }
           if (got.length >= SIZE) return;
@@ -128,7 +131,7 @@
           if (Number.isFinite(d) && d > 20) audio.currentTime = Math.random() * Math.max(0, d - 20);   // départ au hasard
           got.push({ anime: f.title, song: song ? song.title : '', artists, num: m ? Number(m[1]) : 1, url: c.url, audio });
           setProgress();
-        } catch (e) { fails++; await sleep(400); }
+        } catch (e) { fails++; if (!lastFail) lastFail = 'API injoignable'; await sleep(400); }
       }
     };
     await Promise.all([worker(), worker(), worker(), worker()]);
@@ -257,7 +260,7 @@
       show('tn-start');
       $('tn-start-msg').textContent = e.message === 'pool'
         ? 'Pas assez d\'animes avec ces difficultés : coches-en d\'autres.'
-        : 'Impossible de préparer 16 openings (connexion ?). Réessaie dans un instant.';
+        : 'Impossible de préparer 16 openings (connexion ?). Réessaie dans un instant.' + (lastFail ? ' [' + lastFail + ']' : '');
     }
   }
 

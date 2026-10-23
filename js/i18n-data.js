@@ -2439,6 +2439,13 @@ window.I18N_RULES = [
 "Challenge „$1“: $2"
 ],
 [
+"^(Impossible de préparer 16 openings \\(connexion \\?\\)\\. Réessaie dans un instant\\.) \\[(.*)\\]$",
+"§1 [$2]",
+"§1 [$2]",
+"§1 [$2]",
+"§1 [$2]"
+],
+[
 "^Préparation des openings… (\\d+) / (\\d+)$",
 "Preparing the openings… $1 / $2",
 "Preparando los openings… $1 / $2",
