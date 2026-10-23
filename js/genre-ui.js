@@ -74,4 +74,27 @@
   // Si des genres étaient déjà cochés (gardés d'une visite à l'autre), on ouvre le bloc
   if (OQ.getGenres().length) box.open = true;
   render();
+
+  /* ------------------------------------------------------------------
+   * Années (mode solo) : ne jouer que les openings sortis entre deux années
+   * ------------------------------------------------------------------ */
+  const ybox = $('year-box');
+  if (ybox) {
+    const ymin = $('year-min'), ymax = $('year-max'), ylabel = $('year-label'), yinfo = $('year-info');
+    const yrender = () => {
+      const y = OQ.getYears();
+      ylabel.textContent = y.min && y.max ? y.min + ' – ' + y.max : y.min ? 'depuis ' + y.min : y.max ? 'jusqu\'à ' + y.max : 'toutes';
+      ybox.classList.toggle('filtering', !!(y.min || y.max));
+      yinfo.textContent = 'Laisse vide pour ne pas limiter. Les difficultés cochées en haut s\'appliquent toujours.';
+      if (document.activeElement !== ymin) ymin.value = y.min || '';
+      if (document.activeElement !== ymax) ymax.value = y.max || '';
+    };
+    const apply = () => { OQ.setYears(parseInt(ymin.value, 10) || 0, parseInt(ymax.value, 10) || 0); yrender(); };
+    ymin.addEventListener('change', apply);
+    ymax.addEventListener('change', apply);
+    $('year-clear').addEventListener('click', () => { ymin.value = ''; ymax.value = ''; apply(); });
+    const y0 = OQ.getYears();
+    if (y0.min || y0.max) ybox.open = true;
+    yrender();
+  }
 })();

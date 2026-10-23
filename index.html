@@ -9,7 +9,7 @@
   <link rel="icon" href="favicon-32.png" sizes="32x32" type="image/png">
   <link rel="apple-touch-icon" href="apple-touch-icon.png">
   <link rel="manifest" href="site.webmanifest">
-  <link rel="stylesheet" href="css/style.css?v=20261021">
+  <link rel="stylesheet" href="css/style.css?v=20261023">
 </head>
 <body>
 
@@ -121,6 +121,7 @@
     </div>
 
     <!-- Genres : ne proposer que les openings d'animes de certains genres -->
+    <div class="filter-row">
     <details id="genre-box" class="genre-box">
       <summary>🎭 Genres : <span id="genre-label">tous</span></summary>
       <div class="genre-body">
@@ -129,6 +130,20 @@
         <button id="genre-clear" class="btn secondary mini2" type="button">Tout décocher</button>
       </div>
     </details>
+    <details id="year-box" class="genre-box">
+      <summary>📅 Années : <span id="year-label">toutes</span></summary>
+      <div class="genre-body">
+        <div class="year-row">
+          <label for="year-min">De</label>
+          <input id="year-min" type="number" min="1960" max="2100" step="1" placeholder="1960" inputmode="numeric">
+          <label for="year-max">à</label>
+          <input id="year-max" type="number" min="1960" max="2100" step="1" placeholder="2026" inputmode="numeric">
+        </div>
+        <p id="year-info" class="lib-info"></p>
+        <button id="year-clear" class="btn secondary mini2" type="button">Toutes les années</button>
+      </div>
+    </details>
+    </div>
 
     <!-- Lecteur audio -->
     <section id="player-card" class="card">
@@ -497,17 +512,17 @@
     </div>
   </div>
 
-  <script src="js/i18n-data.js?v=20261021"></script>
-  <script src="js/i18n.js?v=20261021"></script>
-  <script src="js/animes.js?v=20261021"></script>
-  <script src="js/genres.js?v=20261021"></script>
-  <script src="js/overrides.js?v=20261021"></script>
-  <script src="js/app.js?v=20261021"></script>
-  <script src="js/lists.js?v=20261021"></script>
-  <script src="js/library.js?v=20261021"></script>
-  <script src="js/genre-ui.js?v=20261021"></script>
-  <script src="js/challenge.js?v=20261021"></script>
-  <script src="js/multi.js?v=20261021"></script>
-  <script src="js/fx.js?v=20261021"></script>
+  <script src="js/i18n-data.js?v=20261023"></script>
+  <script src="js/i18n.js?v=20261023"></script>
+  <script src="js/animes.js?v=20261023"></script>
+  <script src="js/genres.js?v=20261023"></script>
+  <script src="js/overrides.js?v=20261023"></script>
+  <script src="js/app.js?v=20261023"></script>
+  <script src="js/lists.js?v=20261023"></script>
+  <script src="js/library.js?v=20261023"></script>
+  <script src="js/genre-ui.js?v=20261023"></script>
+  <script src="js/challenge.js?v=20261023"></script>
+  <script src="js/multi.js?v=20261023"></script>
+  <script src="js/fx.js?v=20261023"></script>
 </body>
 </html>

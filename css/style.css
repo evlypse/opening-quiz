@@ -860,6 +860,12 @@ select:focus { outline: none; border-color: var(--v500); box-shadow: 0 0 0 3px v
 .genre-chips { display: flex; flex-wrap: wrap; gap: 6px; }
 .genre-body .lib-info { margin: 8px 0; }
 .is-multi .genre-box { opacity: 0.45; pointer-events: none; }
+.filter-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; align-items: start; }
+.filter-row .genre-box { min-width: 0; }
+.year-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.year-row label { font-size: 0.88rem; font-weight: 600; color: var(--g700); }
+.year-row input { width: 92px; padding: 7px 8px; }
+@media (max-width: 560px) { .filter-row { grid-template-columns: 1fr; } }
 .mp-hint { margin: -2px 0 0; font-size: 0.78rem; color: var(--g500); }
 
 /* Défis */

@@ -298,7 +298,11 @@
   const GENRE_IDS = new Set((window.GENRES || []).map((g) => g.id));
   const GENRE_KEY = 'opening-quiz-genres';
   const genreSel = new Set(store.get(GENRE_KEY, '').split(',').filter((g) => GENRE_IDS.has(g)));
-  const soloOpts = () => ({ genres: Array.from(genreSel) });
+  // Années (mode solo) : 0 = pas de limite
+  const YEAR_KEY = 'opening-quiz-years';
+  const yearSel = { min: 0, max: 0 };
+  (() => { const p = store.get(YEAR_KEY, '').split('-').map((x) => parseInt(x, 10)); yearSel.min = p[0] > 0 ? p[0] : 0; yearSel.max = p[1] > 0 ? p[1] : 0; })();
+  const soloOpts = () => ({ genres: Array.from(genreSel), yearMin: yearSel.min, yearMax: yearSel.max });
 
   let totalOPs = 0;
   let totalKnown = false;
@@ -609,11 +613,15 @@
   /* ------------------------------------------------------------------
    * API AnimeThemes (avec mémoire des requêtes déjà faites)
    * ------------------------------------------------------------------ */
+  let lastFail = '';                 // dernière cause d'échec, affichée si rien ne charge
   async function apiFetch(path, params, signal) {
     const qs = Object.entries(params || {})
       .map(([k, v]) => `${k}=${encodeURIComponent(v)}`)
       .join('&');
-    const res = await fetch(`${API}${path}${qs ? '?' + qs : ''}`, { signal });
+    let res;
+    try { res = await fetch(`${API}${path}${qs ? '?' + qs : ''}`, { signal }); }
+    catch (e) { if (e && e.name !== 'AbortError') lastFail = 'API injoignable'; throw e; }
+    if (!res.ok && res.status !== 400 && res.status !== 422) lastFail = 'API ' + res.status;
     if (res.status === 429) {          // trop de requêtes : on laisse souffler l'API
       await sleep(1500);
       throw new Error('Trop de requêtes (429)');
@@ -1241,8 +1249,8 @@
         snippetStart = typeof forcedStart === 'number' ? Math.min(Math.max(0, forcedStart), maxStart) : Math.random() * maxStart;
         finish(true);
       };
-      const onError = () => finish(false);
-      const timer = setTimeout(() => finish(false), 15000);
+      const onError = () => { lastFail = 'audio ' + (audio.error ? 'code ' + audio.error.code : 'illisible'); finish(false); };
+      const timer = setTimeout(() => { lastFail = 'audio trop lent'; finish(false); }, 15000);
 
       audio.addEventListener('loadedmetadata', onReady);
       audio.addEventListener('canplay', onReady);
@@ -1433,7 +1441,7 @@
     const info = await acquireRound(id, soloOpts());
     if (info === null) return;
     if (!info) {
-      showLoadError('Impossible de charger un opening (connexion ?). Clique sur « Suivant » pour réessayer.');
+      showLoadError('Impossible de charger un opening (connexion ?). Clique sur « Suivant » pour réessayer.' + (lastFail ? ' [' + lastFail + ']' : ''));
       return;
     }
     activateRound(info, soloOpts());
@@ -1954,6 +1962,14 @@
     // Défis et genres
     challengeRound, infoForThemeId, randomOpening,
     getLevels: () => LEVELS.filter((l) => levels.has(l)),
+    getYears: () => ({ min: yearSel.min, max: yearSel.max }),
+    setYears: (min, max) => {
+      yearSel.min = min > 0 ? Math.floor(min) : 0;
+      yearSel.max = max > 0 ? Math.floor(max) : 0;
+      if (yearSel.min && yearSel.max && yearSel.min > yearSel.max) { const t = yearSel.min; yearSel.min = yearSel.max; yearSel.max = t; }
+      store.set(YEAR_KEY, yearSel.min + '-' + yearSel.max);
+      if (!mp.active) scheduleReload();
+    },
     getGenres: () => Array.from(genreSel),
     setGenres(list) {
       genreSel.clear();

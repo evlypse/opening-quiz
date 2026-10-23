@@ -1903,6 +1903,41 @@ window.I18N_ROWS = [
 "pistas desactivadas",
 "dicas desativadas",
 "Hinweise aus"
+],
+[
+"📅 Années :",
+"📅 Years:",
+"📅 Años:",
+"📅 Anos:",
+"📅 Jahre:"
+],
+[
+"toutes",
+"all",
+"todos",
+"todos",
+"alle"
+],
+[
+"Toutes les années",
+"All years",
+"Todos los años",
+"Todos os anos",
+"Alle Jahre"
+],
+[
+"Laisse vide pour ne pas limiter. Les difficultés cochées en haut s'appliquent toujours.",
+"Leave empty for no limit. The difficulties ticked at the top still apply.",
+"Déjalo vacío para no limitar. Las dificultades marcadas arriba se siguen aplicando.",
+"Deixe vazio para não limitar. As dificuldades marcadas acima continuam valendo.",
+"Leer lassen für keine Begrenzung. Die oben angehakten Schwierigkeitsgrade gelten weiterhin."
+],
+[
+"De",
+"From",
+"De",
+"De",
+"Von"
 ]
 ];
 window.I18N_RULES = [
@@ -2248,6 +2283,27 @@ window.I18N_RULES = [
 "Desafío «$1»: $2",
 "Desafio “$1”: $2",
 "Challenge „$1“: $2"
+],
+[
+"^depuis (\\d+)$",
+"since $1",
+"desde $1",
+"desde $1",
+"seit $1"
+],
+[
+"^jusqu'à (\\d+)$",
+"until $1",
+"hasta $1",
+"até $1",
+"bis $1"
+],
+[
+"^(Impossible de charger un opening \\(connexion \\?\\)\\. Clique sur « Suivant » pour réessayer\\.) \\[(.*)\\]$",
+"§1 [$2]",
+"§1 [$2]",
+"§1 [$2]",
+"§1 [$2]"
 ],
 [
 "^⚔ Défis \\((\\d+)\\)$",

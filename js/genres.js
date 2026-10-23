@@ -32,6 +32,7 @@ window.GENRES = [
 ];
 
 window.ANIME_GENRES = {
+  sword_art_online_alicization: "isekai action adventure fantasy romance drama",
   bleach: "action adventure supernatural shounen",
   bleach_sennen_kessen_hen: "action fantasy supernatural shounen",
   naruto: "action adventure shounen",
