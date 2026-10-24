@@ -93,7 +93,7 @@
     const sorted = item.vids.slice().sort((x, y) => (x.rank === best ? 0 : 1) - (y.rank === best ? 0 : 1)
       || (x.rank - y.rank) || Math.abs((x.res || q) - q) - Math.abs((y.res || q) - q));
     const urls = sorted.map((v) => v.url).filter((u, i, arr) => arr.indexOf(u) === i).slice(0, 5);
-    if (item.audioUrl) urls.push(item.audioUrl);
+    if (!urls.length && item.audioUrl) urls.push(item.audioUrl);          // le son seul : uniquement s'il n'existe aucune vidéo
     return urls;
   }
 
@@ -134,21 +134,25 @@
     return new Promise((resolve) => {
       const a = makeMedia(item);
       a.preload = 'auto';
-      let tries = 0, done = false, timer = 0;
+      let tries = 0, done = false;
+      let lastMove = Date.now(), lastEnd = -1, startedAt = Date.now();
       const buffered = () => { try { const bf = a.buffered; return bf.length ? bf.end(bf.length - 1) : 0; } catch (e) { return 0; } };
-      const finish = (ok) => { if (done) return; done = true; clearTimeout(timer); clearInterval(poll); resolve(ok); };
+      const finish = (ok) => { if (done) return; done = true; clearInterval(poll); resolve(ok); };
       const retry = () => {
-        clearTimeout(timer);
-        if (++tries >= 3 || item.urls.length < 2) return finish(false);
-        item.ui = (item.ui + 1) % item.urls.length;
+        if (done) return;
+        if (++tries >= 3) return finish(false);
+        item.ui = (item.ui + 1) % item.urls.length;          // une autre version vidéo du même opening
         a.src = item.urls[item.ui];
-        timer = setTimeout(retry, 30000);
+        lastMove = Date.now(); lastEnd = -1; startedAt = Date.now();
       };
       a.addEventListener('error', retry);
-      timer = setTimeout(retry, 45000);
       const poll = setInterval(() => {
-        if (Number.isFinite(a.duration) && buffered() >= Math.min(20, Math.max(1, a.duration - 1))) finish(true);
-      }, 250);
+        const e = buffered();
+        if (e !== lastEnd) { lastEnd = e; lastMove = Date.now(); }
+        if (Number.isFinite(a.duration) && e >= Math.min(20, Math.max(1, a.duration - 1))) return finish(true);
+        // rien ne bouge depuis 30 s (ou 2 min au total) : on essaie une autre version
+        if (Date.now() - lastMove > 30000 || Date.now() - startedAt > 120000) retry();
+      }, 300);
     });
   }
 
@@ -228,7 +232,7 @@
       tries++;
       const t = v.currentTime;
       const it = v._item;
-      if (tries >= 2 && it && it.urls.length > 1) { it.ui = (it.ui + 1) % it.urls.length; v.src = it.urls[it.ui]; } else v.load();
+      if (tries >= 3 && it && it.urls.length > 1) { it.ui = (it.ui + 1) % it.urls.length; v.src = it.urls[it.ui]; } else v.load();
       v.addEventListener('loadedmetadata', () => { try { v.currentTime = t; } catch (e) { /* ignoré */ } }, { once: true });
       v._wd = setTimeout(check, 15000);
     };
