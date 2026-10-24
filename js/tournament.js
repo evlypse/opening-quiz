@@ -54,9 +54,9 @@
     const incs = ['animethemes.animethemeentries.videos.audio,animethemes.song.artists', 'animethemes.animethemeentries.videos.audio,animethemes.song'];
     for (const inc of incs) {
       const res = await fetch(`${API}/anime/${encodeURIComponent(slug)}?include=${encodeURIComponent(inc)}`);
-      if (res.status === 429) { lastFail = 'API 429'; await sleep(1500); throw new Error('429'); }
+      if (res.status === 429) { await sleep(1500); throw new Error('429'); }
       if (res.status === 400 || res.status === 422) continue;
-      if (!res.ok) { lastFail = 'API ' + res.status; throw new Error('HTTP ' + res.status); }
+      if (!res.ok) throw new Error('HTTP ' + res.status);
       const data = await res.json();
       return data.anime || null;
     }
@@ -101,11 +101,12 @@
   let lastGesture = 0;
   ['pointerdown', 'keydown', 'touchstart', 'mousedown'].forEach((ev) => document.addEventListener(ev, () => { lastGesture = Date.now(); }, true));
 
-  let lastFail = '';
+  // Le lecteur est un élément <video> (il joue aussi un fichier audio seul). Il lit la vidéo déjà téléchargée en
+  // mémoire quand c'est possible : plus aucun délai au moment d'appuyer sur lecture.
   function makeMedia(item) {
     if (item.audio) return item.audio;
     const a = document.createElement('video');
-    a.preload = 'metadata';
+    a.preload = 'auto';
     a.controls = true;
     a.playsInline = true;
     a.volume = 0.5;
@@ -116,77 +117,86 @@
       items.forEach((it) => { if (it.audio && it.audio !== a) it.audio.pause(); });   // un seul à la fois
       if (!item.revealed) { item.revealed = true; showInfo(item); }                   // le nom apparaît dès qu'on lance la vidéo
     });
-    a.addEventListener('error', () => { lastFail = 'média code ' + (a.error ? a.error.code : '?') + ' (' + (item.urls[item.ui] || '').replace(/^https?:\/\//, '').slice(0, 40) + ')'; });
     a._item = item;
-    item.ui = 0;
-    item.urls = urlsFor(item, quality);
     item.audio = a;
-    a.src = item.urls[0];
+    a.src = item.blobUrl || item.urls[item.ui || 0];
     return a;
+  }
+
+  // Libère la mémoire d'un opening (vidéo téléchargée + lecteur)
+  function release(item) {
+    if (item.audio) { item.audio.pause(); item.audio.removeAttribute('src'); item.audio.load(); item.audio = null; }
+    if (item.blobUrl) { try { URL.revokeObjectURL(item.blobUrl); } catch (e) { /* ignoré */ } }
+    item.blobUrl = '';
+    item.ready = null;
+    item.pct = 0;
+    item.mode = '';
+  }
+
+  // Télécharge toute la vidéo en mémoire (avec sa progression). En cas d'échec : autre version de la même vidéo,
+  // puis, en dernier recours, lecture directe depuis le serveur.
+  function ensure(item) {
+    if (item.ready) return item.ready;
+    item.pct = 0;
+    item.ready = (async () => {
+      let netErrors = 0;
+      for (let t = 0; t < 5; t++) {
+        const idx = (item.ui + t) % item.urls.length;
+        const ctl = new AbortController();
+        let idle = 0;
+        const arm = () => { clearTimeout(idle); idle = setTimeout(() => ctl.abort(), 40000); };   // plus rien ne vient depuis 40 s
+        try {
+          arm();
+          const res = await fetch(item.urls[idx], { signal: ctl.signal });
+          if (!res.ok) throw new Error('HTTP ' + res.status);
+          const total = Number(res.headers.get('content-length')) || 0;
+          let blob;
+          if (res.body && res.body.getReader) {
+            const reader = res.body.getReader();
+            const parts = [];
+            let got = 0;
+            for (;;) {
+              const r = await reader.read();
+              if (r.done) break;
+              parts.push(r.value); got += r.value.length; arm();
+              item.pct = total ? Math.min(0.99, got / total) : 0.5;
+            }
+            blob = new Blob(parts, { type: res.headers.get('content-type') || 'video/webm' });
+          } else blob = await res.blob();
+          clearTimeout(idle);
+          item.blobUrl = URL.createObjectURL(blob);
+          item.ui = idx;
+          item.pct = 1;
+          item.mode = 'blob';
+          return;
+        } catch (e) {
+          clearTimeout(idle);
+          if (e && e.name === 'TypeError') { if (++netErrors >= 2) break; }   // réseau ou accès refusé : on retente une fois
+          await sleep(900 * (t + 1));
+        }
+      }
+      item.mode = 'stream';                                                   // dernier recours : lecture directe
+      item.pct = 1;
+    })();
+    return item.ready;
   }
 
   let slots = [];            // les 16 places du premier tour, remplies au fur et à mesure du chargement
   let loaderDone = false;
 
-  // Charge le début de la vidéo (une vingtaine de secondes) avant de la déclarer prête ; en cas de blocage, on essaie
-  // une autre version du même opening. Renvoie false si rien ne marche.
-  function warm(item) {
-    return new Promise((resolve) => {
-      const a = makeMedia(item);
-      a.preload = 'auto';
-      let tries = 0, done = false;
-      let lastMove = Date.now(), lastEnd = -1, startedAt = Date.now(), metaAt = 0;
-      const buffered = () => { try { const bf = a.buffered; return bf.length ? bf.end(bf.length - 1) : 0; } catch (e) { return 0; } };
-      const finish = (ok) => { if (done) return; done = true; clearInterval(poll); resolve(ok); };
-      let waiting = false;
-      const retry = () => {
-        if (done || waiting) return;
-        if (++tries >= 4) return finish(false);
-        waiting = true;
-        lastMove = Date.now(); startedAt = Date.now();
-        setTimeout(() => {                                  // pause croissante : le serveur de vidéos peut limiter les demandes
-          waiting = false;
-          if (done) return;
-          item.ui = (item.ui + 1) % item.urls.length;       // une autre version vidéo du même opening
-          a.src = item.urls[item.ui];
-          lastMove = Date.now(); lastEnd = -1; startedAt = Date.now();
-        }, 1200 * tries);
-      };
-      a.addEventListener('error', retry);
-      const poll = setInterval(() => {
-        const e = buffered();
-        if (e !== lastEnd) { lastEnd = e; lastMove = Date.now(); }
-        const hasMeta = Number.isFinite(a.duration) && a.duration > 0;
-        if (hasMeta && !metaAt) metaAt = Date.now();
-        const goal = hasMeta ? Math.min(10, Math.max(1, a.duration - 1)) : 10;
-        // Prêt : on connaît la durée et le début est chargé (ou la lecture peut démarrer sans attendre)
-        if (hasMeta && (e >= goal || (a.readyState >= 3 && e >= 3))) return finish(true);
-        // Le navigateur ne charge plus rien en avance mais la vidéo est lisible : c'est suffisant
-        if (hasMeta && a.readyState >= 2 && e > 0 && Date.now() - lastMove > 8000) return finish(true);
-        // Durée connue mais le navigateur ne charge rien de plus : la vidéo est valide, elle se chargera à l'affichage
-        if (hasMeta && Date.now() - metaAt > 8000) return finish(true);
-        // Durée jamais reçue : on essaie une autre version (30 s sans bouger, ou 2 min au total)
-        if (!hasMeta && (Date.now() - lastMove > 30000 || Date.now() - startedAt > 120000)) retry();
-      }, 300);
-    });
-  }
-
   function startLoader(id) {
-    lastFail = '';
     loaderDone = false;
     const order = shuffle(usablePool());
     let cursor = 0, fails = 0, got = 0, inflight = 0;
-    const t0 = Date.now();
-    const tick = setInterval(() => { if (id !== runId || loaderDone) clearInterval(tick); else setProgress(); }, 2000);
     const setProgress = () => {
-      $('tn-load-text').textContent = 'Préparation des openings… ' + got + ' / ' + SIZE + (lastFail && Date.now() - t0 > 20000 ? ' [' + lastFail + ']' : '');
+      $('tn-load-text').textContent = 'Préparation des openings… ' + got + ' / ' + SIZE;
       $('tn-load-bar').style.width = Math.round(got / SIZE * 100) + '%';
     };
     setProgress();
     const worker = async () => {
       while (id === runId) {
         if (got >= SIZE) return;
-        if (got + inflight >= SIZE) { await sleep(300); continue; }          // les autres s'en occupent
+        if (got + inflight >= SIZE) { await sleep(200); continue; }          // les autres s'en occupent
         if (cursor >= order.length || fails > 80) return;
         const f = order[cursor++];
         inflight++;
@@ -200,18 +210,17 @@
           const song = c.t.song || null;
           const artists = song && Array.isArray(song.artists) ? song.artists.map((x) => x.name).filter(Boolean) : [];
           const m = /(\d+)/.exec(c.t.slug || '');
-          const item = { anime: f.title, song: song ? song.title : '', artists, num: m ? Number(m[1]) : 1, vids: c.vids, audioUrl: c.audioUrl, urls: [], audio: null };
-          items.push(item);
-          const ok = await warm(item);
-          if (id !== runId) return;
-          if (!ok) { items.splice(items.indexOf(item), 1); item.audio.removeAttribute('src'); item.audio.load(); fails++; continue; }
+          const item = { anime: f.title, song: song ? song.title : '', artists, num: m ? Number(m[1]) : 1, vids: c.vids, audioUrl: c.audioUrl, urls: [], ui: 0, audio: null };
+          item.urls = urlsFor(item, quality);
           slots[got++] = item;
+          items.push(item);
+          if (got <= 2) ensure(item);                                         // les deux premiers : on commence tout de suite
           setProgress();
-        } catch (e) { fails++; if (!lastFail) lastFail = 'API injoignable'; await sleep(400); }
+        } catch (e) { fails++; await sleep(400); }
         finally { inflight--; }
       }
     };
-    Promise.all([worker(), sleep(500).then(worker), sleep(1000).then(worker), sleep(1500).then(worker)]).then(() => { if (id === runId) loaderDone = true; });
+    Promise.all([worker(), worker(), worker(), worker(), worker()]).then(() => { if (id === runId) loaderDone = true; });
   }
 
   /* ---------- Tournoi ---------- */
@@ -228,33 +237,14 @@
     const card = $(i ? 'tn-card-b' : 'tn-card-a');
     card.querySelector('.tn-pick').addEventListener('click', () => choose(i));
     card.querySelector('.tn-reload').addEventListener('click', () => {
-      const v = pair && pair[i] && pair[i].audio;
-      if (!v) return;
-      const t = v.currentTime;
-      v.load();
-      v.addEventListener('loadedmetadata', () => { try { v.currentTime = t; } catch (e) { /* ignoré */ } }, { once: true });
-      watch(v);
+      const it = pair && pair[i];
+      if (!it) return;
+      it.revealed = it.revealed || false;
+      release(it);                                  // on retélécharge cette vidéo proprement
+      showPair();
     });
     return { card };
   });
-
-  // Une vidéo qui n'a pas fini de se charger est relancée toute seule (après 2 essais, on passe à une autre version
-  // du même opening), ou avec le bouton « Recharger »
-  function watch(v) {
-    let tries = 0;
-    clearTimeout(v._wd);
-    const check = () => {
-      const stuck = !Number.isFinite(v.duration) || !!v.error;   // (un téléchargement lent n'est pas « bloqué »)
-      if (!stuck || tries >= 6 || $('tn-match').classList.contains('hidden')) return;
-      tries++;
-      const t = v.currentTime;
-      const it = v._item;
-      if (tries >= 3 && it && it.urls.length > 1) { it.ui = (it.ui + 1) % it.urls.length; v.src = it.urls[it.ui]; } else v.load();
-      v.addEventListener('loadedmetadata', () => { try { v.currentTime = t; } catch (e) { /* ignoré */ } }, { once: true });
-      v._wd = setTimeout(check, 15000);
-    };
-    v._wd = setTimeout(check, 15000);
-  }
 
   // Nom de l'opening (anime, numéro, chanson) : affiché sous la vidéo une fois qu'elle a été lancée
   function showInfo(item) {
@@ -267,8 +257,10 @@
     });
   }
 
-  const failText = () => 'Impossible de préparer 16 openings (connexion ?). Réessaie dans un instant.' + (lastFail ? ' [' + lastFail + ']' : '');
+  const failText = () => 'Impossible de préparer 16 openings (connexion ?). Réessaie dans un instant.';
 
+  // Affiche le duel en cours : d'abord on télécharge les deux vidéos en entier (progression à l'écran), puis on les
+  // montre ; pendant que tu joues, le duel suivant se télécharge déjà.
   async function showPair() {
     const id = runId;
     stopAll();
@@ -281,22 +273,33 @@
       }
       if (id !== runId) return;
     }
-    pair = [current[ia], current[ia + 1]];
+    const p = [current[ia], current[ia + 1]];
+    const waits = p.map((it) => ensure(it));
+    let finished = false;
+    Promise.all(waits).then(() => { finished = true; });
+    if (!p.every((it) => it.pct >= 1)) {
+      show('tn-load');
+      while (id === runId && !finished) {
+        const pct = Math.round(((p[0].pct || 0) + (p[1].pct || 0)) / 2 * 100);
+        $('tn-load-text').textContent = 'Chargement des vidéos du duel… ' + pct + ' %';
+        $('tn-load-bar').style.width = pct + '%';
+        await sleep(150);
+      }
+      if (id !== runId) return;
+    }
+    pair = p;
     $('tn-round').textContent = ROUND_NAMES[current.length / 2] || 'Duel';
     $('tn-count').textContent = 'Duel ' + (pairIdx + 1) + ' / ' + (current.length / 2);
     sides.forEach((s, i) => {
       s.audio = makeMedia(pair[i]);
-      s.audio.preload = 'auto';
-      s.audio.currentTime = 0;
       const box = s.card.querySelector('.tn-vid');
       box.textContent = '';
       box.appendChild(s.audio);
-      watch(s.audio);
       showInfo(pair[i]);
     });
     show('tn-match');
-    // on prépare déjà le duel suivant (juste le début des vidéos)
-    [ia + 2, ia + 3].forEach((k) => { if (current[k]) makeMedia(current[k]); });
+    // le duel suivant se télécharge pendant que tu joues celui-ci
+    [ia + 2, ia + 3].forEach((k) => { if (current[k]) ensure(current[k]); });
   }
 
   let afterPick = null;
@@ -305,6 +308,7 @@
     stopAll();
     history.push({ round: ROUND_NAMES[current.length / 2] || 'Duel', a: pair[0], b: pair[1], win: i });
     next.push(pair[i]);
+    release(pair[1 - i]);                           // le perdant n'a plus besoin de sa vidéo
     // Révélation du duel qui vient d'être joué (les autres restent cachés)
     const res = $('tn-between-res');
     res.textContent = '';
@@ -333,18 +337,11 @@
       b.setAttribute('aria-pressed', String(on));
     });
     items.forEach((it) => {
-      const v = it.audio;
-      if (!v) return;
-      const t = v.currentTime;
-      v.pause();                                   // après un changement de qualité, c'est toi qui relances
       it.urls = urlsFor(it, quality);
       it.ui = 0;
-      v.src = it.urls[0];
-      v.addEventListener('loadedmetadata', () => {
-        try { v.currentTime = t; } catch (e) { /* ignoré */ }
-      }, { once: true });
-      if (!$('tn-match').classList.contains('hidden')) watch(v);
+      release(it);
     });
+    if (!$('tn-match').classList.contains('hidden')) showPair();      // le duel en cours est rechargé dans la nouvelle qualité
   }
   document.querySelectorAll('.tn-q').forEach((b) => b.addEventListener('click', () => setQuality(Number(b.dataset.q))));
   setQuality(quality);
@@ -386,6 +383,7 @@
     stopAll();
     $('tn-start-msg').textContent = '';
     if (usablePool().length < SIZE) { $('tn-start-msg').textContent = 'Pas assez d\'animes avec ces difficultés : coches-en d\'autres.'; return; }
+    items.forEach(release);
     items = [];
     slots = new Array(SIZE);
     current = slots; next = []; pairIdx = 0; history = [];
@@ -399,7 +397,7 @@
     })();
   }
 
-  function quit() { runId++; stopAll(); items.forEach((it) => { if (it.audio) it.audio.onended = null; }); show('tn-start'); }
+  function quit() { runId++; stopAll(); items.forEach(release); items = []; show('tn-start'); }
 
   $('tn-go').addEventListener('click', start);
   $('tn-again').addEventListener('click', () => { stopAll(); start(); });

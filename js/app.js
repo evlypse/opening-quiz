@@ -1228,7 +1228,38 @@
   /* ------------------------------------------------------------------
    * Chargement audio
    * ------------------------------------------------------------------ */
-  function prepareAudio(url, forcedStart) {
+  // Le fichier audio est téléchargé en entier en mémoire dès qu'on connaît l'opening : au moment de le jouer,
+  // il n'y a plus rien à attendre. Si le serveur refuse ce téléchargement, on lit en direct comme avant.
+  const audioBlobs = new Map();           // adresse -> { promise, blobUrl }
+  function fetchAudioBlob(url) {
+    const known = audioBlobs.get(url);
+    if (known) return known.promise;
+    const rec = { blobUrl: '', promise: null };
+    rec.promise = (async () => {
+      const ctl = new AbortController();
+      const timer = setTimeout(() => ctl.abort(), 25000);
+      try {
+        const res = await fetch(url, { signal: ctl.signal });
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        const blob = await res.blob();
+        rec.blobUrl = URL.createObjectURL(blob);
+        return rec.blobUrl;
+      } catch (e) {
+        return '';
+      } finally { clearTimeout(timer); }
+    })();
+    audioBlobs.set(url, rec);
+    while (audioBlobs.size > 6) {
+      const oldest = audioBlobs.keys().next().value;
+      const r = audioBlobs.get(oldest);
+      audioBlobs.delete(oldest);
+      if (r && r.blobUrl && audio.src !== r.blobUrl) { try { URL.revokeObjectURL(r.blobUrl); } catch (e) { /* ignoré */ } }
+    }
+    return rec.promise;
+  }
+
+  async function prepareAudio(url, forcedStart) {
+    const local = await Promise.race([fetchAudioBlob(url), sleep(10000).then(() => '')]);
     return new Promise((resolve) => {
       let finished = false;
       const finish = (ok) => {
@@ -1256,14 +1287,14 @@
       audio.addEventListener('canplay', onReady);
       audio.addEventListener('error', onError);
       audio.pause();
-      audio.src = url;
+      audio.src = local || url;
       audio.load();
     });
   }
 
   // Charge un fichier audio en avance : il est déjà là quand on en a besoin
   function preloadAudio(url) {
-    try { preAudio.src = url; preAudio.load(); } catch (e) { /* ignoré */ }
+    fetchAudioBlob(url);
   }
 
   /* ------------------------------------------------------------------
@@ -1284,9 +1315,9 @@
         try {
           const info = await fetchRandomOpening(opts);
           if (!info) continue;
+          preloadAudio(info.url);                       // l'audio se télécharge pendant qu'on cherche les détails
+          if (mp.onPrefetched) mp.onPrefetched(info);   // multijoueur : les invités le téléchargent aussi
           await prepareInfo(info);
-          preloadAudio(info.url);
-          if (mp.onPrefetched) mp.onPrefetched(info);
           return info;
         } catch (err) {
           await sleep(300);
@@ -1377,6 +1408,7 @@
         const info = await fetchRandomOpening(opts);
         if (id !== roundId) return null;
         if (!info) continue;
+        if (mp.onPrefetched) mp.onPrefetched(info);
 
         const [ok] = await Promise.all([prepareAudio(info.url), prepareInfo(info)]);
         if (id !== roundId) return null;
@@ -1441,7 +1473,7 @@
     const info = await acquireRound(id, soloOpts());
     if (info === null) return;
     if (!info) {
-      showLoadError('Impossible de charger un opening (connexion ?). Clique sur « Suivant » pour réessayer.' + (lastFail ? ' [' + lastFail + ']' : ''));
+      showLoadError('Impossible de charger un opening (connexion ?). Clique sur « Suivant » pour réessayer.');
       return;
     }
     activateRound(info, soloOpts());

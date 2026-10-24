@@ -2509,6 +2509,13 @@ window.I18N_RULES = [
 "Challenge „$1“: $2"
 ],
 [
+"^Chargement des vidéos du duel… (\\d+) %$",
+"Loading the duel's videos… $1%",
+"Cargando los vídeos del duelo… $1 %",
+"Carregando os vídeos do duelo… $1%",
+"Videos des Duells werden geladen… $1 %"
+],
+[
 "^(Préparation des openings… \\d+ / \\d+) \\[(.*)\\]$",
 "§1 [$2]",
 "§1 [$2]",
