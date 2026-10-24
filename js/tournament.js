@@ -129,6 +129,7 @@
     if (item.blobUrl) { try { URL.revokeObjectURL(item.blobUrl); } catch (e) { /* ignoré */ } }
     item.blobUrl = '';
     item.ready = null;
+    item.skip = false;
     item.pct = 0;
     item.mode = '';
   }
@@ -140,13 +141,14 @@
     item.pct = 0;
     item.ready = (async () => {
       let netErrors = 0;
-      for (let t = 0; t < 5; t++) {
+      for (let t = 0; t < 6 && !item.skip; t++) {
         const idx = (item.ui + t) % item.urls.length;
         const ctl = new AbortController();
+        item.abort = () => ctl.abort();
         let idle = 0;
-        const arm = () => { clearTimeout(idle); idle = setTimeout(() => ctl.abort(), 40000); };   // plus rien ne vient depuis 40 s
+        const arm = (ms) => { clearTimeout(idle); idle = setTimeout(() => ctl.abort(), ms || 12000); };   // rien ne vient depuis 12 s : on change de source
         try {
-          arm();
+          arm(15000);
           const res = await fetch(item.urls[idx], { signal: ctl.signal });
           if (!res.ok) throw new Error('HTTP ' + res.status);
           const total = Number(res.headers.get('content-length')) || 0;
@@ -171,8 +173,9 @@
           return;
         } catch (e) {
           clearTimeout(idle);
+          if (item.skip) break;
           if (e && e.name === 'TypeError') { if (++netErrors >= 2) break; }   // réseau ou accès refusé : on retente une fois
-          await sleep(900 * (t + 1));
+          await sleep(400);
         }
       }
       item.mode = 'stream';                                                   // dernier recours : lecture directe
@@ -279,7 +282,9 @@
     Promise.all(waits).then(() => { finished = true; });
     if (!p.every((it) => it.pct >= 1)) {
       show('tn-load');
+      const t0 = Date.now();
       while (id === runId && !finished) {
+        if (Date.now() - t0 > 30000) p.forEach((it) => { if (it.pct < 1 && !it.skip) { it.skip = true; if (it.abort) it.abort(); } });   // trop long : lecture directe
         const pct = Math.round(((p[0].pct || 0) + (p[1].pct || 0)) / 2 * 100);
         $('tn-load-text').textContent = 'Chargement des vidéos du duel… ' + pct + ' %';
         $('tn-load-bar').style.width = pct + '%';
