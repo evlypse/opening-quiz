@@ -344,6 +344,27 @@
   // (js/challenge.js réutilise ces mêmes crochets : un défi se joue comme une partie à un seul joueur)
 
   const recent = [];                 // derniers animes joués
+  const PLAYED_KEY = 'opening-quiz-played';
+  const PLAYED_MAX = 400;            // openings mémorisés pour ne pas les rejouer de sitôt
+  let playedList = [];
+  try { playedList = JSON.parse(localStorage.getItem(PLAYED_KEY) || '[]').filter((x) => typeof x === 'number'); } catch (e) { playedList = []; }
+  const playedSet = new Set(playedList);
+  function markPlayed(id) {
+    id = Number(id);
+    if (!id) return;
+    if (playedSet.has(id)) playedList.splice(playedList.indexOf(id), 1);
+    playedList.push(id);
+    playedSet.add(id);
+    while (playedList.length > PLAYED_MAX) playedSet.delete(playedList.shift());
+    try { localStorage.setItem(PLAYED_KEY, JSON.stringify(playedList)); } catch (e) { /* ignoré */ }
+  }
+  // Parmi des openings possibles : ceux pas encore joués d'abord ; sinon, le moins récemment joué
+  function freshChoice(cands) {
+    const fresh = cands.filter((o) => !playedSet.has(Number(o.themeId)));
+    if (fresh.length) return pick(fresh);
+    const sorted = cands.slice().sort((a, b) => playedList.indexOf(Number(a.themeId)) - playedList.indexOf(Number(b.themeId)));
+    return pick(sorted.slice(0, Math.max(1, Math.ceil(sorted.length / 2))));
+  }
   const history = [];                // résultats récents (pour la petite frise)
   let streak = 0;
 
@@ -1010,19 +1031,28 @@
       && (!f._data || f._data.ops.some((o) => opTier(f, o) === level && yearOk(o.year, opts)));
 
     let pool = ANIMES.filter((f) => has(f) && !recent.includes(f.slug));
+    if (!pool.length) pool = ANIMES.filter((f) => has(f) && !recent.slice(-3).includes(f.slug));
     if (!pool.length) pool = ANIMES.filter(has);
     if (!pool.length) return null;
 
-    const f = pick(pool);
-    const data = await resolveCurated(f);
+    // On préfère un anime qui a encore des openings jamais joués
+    let f = null;
+    let data = null;
+    let candidates = [];
+    for (let t = 0; t < 6 && pool.length; t++) {
+      const cand = pool.splice(rand(pool.length), 1)[0];
+      const d = await resolveCurated(cand);
+      if (!d) { if (!f) { f = cand; } continue; }
+      const c = d.ops.filter((o) => opTier(cand, o) === level && yearOk(o.year, opts));
+      if (!c.length) continue;
+      if (!f || !data) { f = cand; data = d; candidates = c; }
+      if (c.some((o) => !playedSet.has(Number(o.themeId)))) { f = cand; data = d; candidates = c; break; }
+    }
     if (!data) {
-      console.warn('[Opening Quiz] Anime introuvable :', f.title, `(slug "${f.slug}")`);
+      console.warn('[Opening Quiz] Anime introuvable :', f && f.title, `(slug "${f && f.slug}")`);
       return null;
     }
-
-    const candidates = data.ops.filter((o) => opTier(f, o) === level && yearOk(o.year, opts));
-    if (!candidates.length) return null;
-    const op = pick(candidates);
+    const op = freshChoice(candidates);
 
     const theme = await fetchTheme(op.themeId);
     return infoFromTheme(theme, op.number, f, { altNumbers: altNumbers(data.ops, op), tier: level });
@@ -1040,15 +1070,24 @@
       && (!f._data || f._data.ops.some((o) => okOp(f, o)));
 
     let pool = ANIMES.filter((f) => base(f) && !recent.includes(f.slug));
+    if (!pool.length) pool = ANIMES.filter((f) => base(f) && !recent.slice(-3).includes(f.slug));
     if (!pool.length) pool = ANIMES.filter(base);
     if (!pool.length) return null;
 
-    const f = pick(pool);
-    const data = await resolveCurated(f);
+    let f = null;
+    let data = null;
+    let candidates = [];
+    for (let t = 0; t < 6 && pool.length; t++) {
+      const cand = pool.splice(rand(pool.length), 1)[0];
+      const d = await resolveCurated(cand);
+      if (!d) continue;
+      const c = d.ops.filter((o) => okOp(cand, o));
+      if (!c.length) continue;
+      if (!data) { f = cand; data = d; candidates = c; }
+      if (c.some((o) => !playedSet.has(Number(o.themeId)))) { f = cand; data = d; candidates = c; break; }
+    }
     if (!data) return null;
-    const candidates = data.ops.filter((o) => okOp(f, o));
-    if (!candidates.length) return null;
-    const op = pick(candidates);
+    const op = freshChoice(candidates);
     const theme = await fetchTheme(op.themeId);
     return infoFromTheme(theme, op.number, f, { altNumbers: altNumbers(data.ops, op), tier: opTier(f, op) });
   }
@@ -1089,6 +1128,7 @@
     const theme = (data.animethemes || [])[0];
     if (!theme || !theme.anime || !usableTheme(theme)) return null;
     if (!yearOk(theme.anime.year, opts)) return null;
+    if (playedSet.has(Number(theme.id))) return null;
 
     const entry = entryInfo(theme.anime);
     indexEntries([entry]);
@@ -1431,6 +1471,7 @@
   function activateRound(info, opts) {
     round = info;
     recent.push(info.recentKey);
+    markPlayed(info.themeId);
     if (recent.length > RECENT_MEMORY) recent.shift();
 
     ready = true;
