@@ -135,7 +135,7 @@
       const a = makeMedia(item);
       a.preload = 'auto';
       let tries = 0, done = false;
-      let lastMove = Date.now(), lastEnd = -1, startedAt = Date.now();
+      let lastMove = Date.now(), lastEnd = -1, startedAt = Date.now(), metaAt = 0;
       const buffered = () => { try { const bf = a.buffered; return bf.length ? bf.end(bf.length - 1) : 0; } catch (e) { return 0; } };
       const finish = (ok) => { if (done) return; done = true; clearInterval(poll); resolve(ok); };
       let waiting = false;
@@ -156,9 +156,17 @@
       const poll = setInterval(() => {
         const e = buffered();
         if (e !== lastEnd) { lastEnd = e; lastMove = Date.now(); }
-        if (Number.isFinite(a.duration) && e >= Math.min(20, Math.max(1, a.duration - 1))) return finish(true);
-        // rien ne bouge depuis 30 s (ou 2 min au total) : on essaie une autre version
-        if (Date.now() - lastMove > 30000 || Date.now() - startedAt > 120000) retry();
+        const hasMeta = Number.isFinite(a.duration) && a.duration > 0;
+        if (hasMeta && !metaAt) metaAt = Date.now();
+        const goal = hasMeta ? Math.min(10, Math.max(1, a.duration - 1)) : 10;
+        // Prêt : on connaît la durée et le début est chargé (ou la lecture peut démarrer sans attendre)
+        if (hasMeta && (e >= goal || (a.readyState >= 3 && e >= 3))) return finish(true);
+        // Le navigateur ne charge plus rien en avance mais la vidéo est lisible : c'est suffisant
+        if (hasMeta && a.readyState >= 2 && e > 0 && Date.now() - lastMove > 8000) return finish(true);
+        // Durée connue mais le navigateur ne charge rien de plus : la vidéo est valide, elle se chargera à l'affichage
+        if (hasMeta && Date.now() - metaAt > 8000) return finish(true);
+        // Durée jamais reçue : on essaie une autre version (30 s sans bouger, ou 2 min au total)
+        if (!hasMeta && (Date.now() - lastMove > 30000 || Date.now() - startedAt > 120000)) retry();
       }, 300);
     });
   }
@@ -168,8 +176,10 @@
     loaderDone = false;
     const order = shuffle(usablePool());
     let cursor = 0, fails = 0, got = 0, inflight = 0;
+    const t0 = Date.now();
+    const tick = setInterval(() => { if (id !== runId || loaderDone) clearInterval(tick); else setProgress(); }, 2000);
     const setProgress = () => {
-      $('tn-load-text').textContent = 'Préparation des openings… ' + got + ' / ' + SIZE;
+      $('tn-load-text').textContent = 'Préparation des openings… ' + got + ' / ' + SIZE + (lastFail && Date.now() - t0 > 20000 ? ' [' + lastFail + ']' : '');
       $('tn-load-bar').style.width = Math.round(got / SIZE * 100) + '%';
     };
     setProgress();
