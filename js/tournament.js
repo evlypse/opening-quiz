@@ -116,7 +116,7 @@
       items.forEach((it) => { if (it.audio && it.audio !== a) it.audio.pause(); });   // un seul à la fois
       if (!item.revealed) { item.revealed = true; showInfo(item); }                   // le nom apparaît dès qu'on lance la vidéo
     });
-    a.addEventListener('error', () => { lastFail = 'média code ' + (a.error ? a.error.code : '?'); });
+    a.addEventListener('error', () => { lastFail = 'média code ' + (a.error ? a.error.code : '?') + ' (' + (item.urls[item.ui] || '').replace(/^https?:\/\//, '').slice(0, 40) + ')'; });
     a._item = item;
     item.ui = 0;
     item.urls = urlsFor(item, quality);
@@ -138,12 +138,19 @@
       let lastMove = Date.now(), lastEnd = -1, startedAt = Date.now();
       const buffered = () => { try { const bf = a.buffered; return bf.length ? bf.end(bf.length - 1) : 0; } catch (e) { return 0; } };
       const finish = (ok) => { if (done) return; done = true; clearInterval(poll); resolve(ok); };
+      let waiting = false;
       const retry = () => {
-        if (done) return;
-        if (++tries >= 3) return finish(false);
-        item.ui = (item.ui + 1) % item.urls.length;          // une autre version vidéo du même opening
-        a.src = item.urls[item.ui];
-        lastMove = Date.now(); lastEnd = -1; startedAt = Date.now();
+        if (done || waiting) return;
+        if (++tries >= 4) return finish(false);
+        waiting = true;
+        lastMove = Date.now(); startedAt = Date.now();
+        setTimeout(() => {                                  // pause croissante : le serveur de vidéos peut limiter les demandes
+          waiting = false;
+          if (done) return;
+          item.ui = (item.ui + 1) % item.urls.length;       // une autre version vidéo du même opening
+          a.src = item.urls[item.ui];
+          lastMove = Date.now(); lastEnd = -1; startedAt = Date.now();
+        }, 1200 * tries);
       };
       a.addEventListener('error', retry);
       const poll = setInterval(() => {
@@ -170,7 +177,7 @@
       while (id === runId) {
         if (got >= SIZE) return;
         if (got + inflight >= SIZE) { await sleep(300); continue; }          // les autres s'en occupent
-        if (cursor >= order.length || fails > 40) return;
+        if (cursor >= order.length || fails > 80) return;
         const f = order[cursor++];
         inflight++;
         try {
@@ -194,7 +201,7 @@
         finally { inflight--; }
       }
     };
-    Promise.all([worker(), worker(), worker(), worker(), worker(), worker(), worker(), worker()]).then(() => { if (id === runId) loaderDone = true; });
+    Promise.all([worker(), sleep(500).then(worker), sleep(1000).then(worker), sleep(1500).then(worker)]).then(() => { if (id === runId) loaderDone = true; });
   }
 
   /* ---------- Tournoi ---------- */
