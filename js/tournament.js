@@ -72,50 +72,67 @@
       // Toutes les versions vidéo, de la plus « propre » à la moins : non NSFW d'abord, sans crédits d'abord
       // (les versions NSFW sont gardées en dernier recours, comme sur le site de base)
       (t.animethemeentries || []).forEach((e) => (e.videos || []).forEach((v) => {
-        if (v.link) vids.push({ url: v.link, rank: (e.nsfw ? 2 : 0) + (v.nc ? 0 : 1) });
+        if (v.link) vids.push({ url: v.link, rank: (e.nsfw ? 2 : 0) + (v.nc ? 0 : 1), res: Number(v.resolution) || 0, size: Number(v.size) || 0 });
         if (!audio && v.audio && v.audio.link) audio = v.audio.link;
       }));
-      vids.sort((x, y) => x.rank - y.rank);
-      const urls = vids.map((v) => v.url).filter((u, i, arr) => arr.indexOf(u) === i).slice(0, 4);
-      if (audio) urls.push(audio);                       // dernier recours : le son seul
-      if (urls.length) ok.push({ t, urls, audioUrl: audio, hasVideo: vids.length > 0 });
+      if (vids.length || audio) ok.push({ t, vids, audioUrl: audio, hasVideo: vids.length > 0 });
     });
     return ok.length ? ok[Math.floor(Math.random() * ok.length)] : null;
   }
 
-  // Un élément <video> sert de lecteur (il joue aussi les fichiers audio seuls)
-  let lastFail = '';
-  function loadAudio(url) {
-    return new Promise((resolve) => {
-      const a = document.createElement('video');
-      a.preload = 'metadata';
-      a.controls = true;
-      a.playsInline = true;
-      a.volume = 0.5;
-      let done = false;
-      const end = (v) => { if (done) return; done = true; clearTimeout(timer); resolve(v ? a : null); };
-      const timer = setTimeout(() => { lastFail = 'média trop lent'; end(false); }, 12000);
-      a.addEventListener('loadedmetadata', () => end(true));
-      a.addEventListener('error', () => { lastFail = 'média code ' + (a.error ? a.error.code : '?'); end(false); });
-      a.addEventListener('play', () => { items.forEach((it) => { if (it.audio !== a) it.audio.pause(); }); });   // un seul à la fois
-      a.src = url;
-      a.load();
-    });
+  // Le lecteur (un élément <video>, qui joue aussi un fichier audio seul) n'est créé qu'au moment où l'opening
+  // approche : plus d'attente de 16 vidéos au départ.
+  // Qualité vidéo : 720p par défaut (plus léger), 1080p au choix. Retenue d'une visite à l'autre.
+  let quality = 720;
+  try { if (localStorage.getItem('opening-quiz-tn-quality') === '1080') quality = 1080; } catch (e) { /* ignoré */ }
+
+  // Liste des adresses à essayer pour un opening : versions les plus « propres » d'abord (non NSFW, sans crédits),
+  // puis la résolution la plus proche de la qualité voulue ; le son seul en tout dernier recours.
+  function urlsFor(item, q) {
+    const best = Math.min(...item.vids.map((v) => v.rank), 99);
+    const sorted = item.vids.slice().sort((x, y) => (x.rank === best ? 0 : 1) - (y.rank === best ? 0 : 1)
+      || (x.rank - y.rank) || Math.abs((x.res || q) - q) - Math.abs((y.res || q) - q));
+    const urls = sorted.map((v) => v.url).filter((u, i, arr) => arr.indexOf(u) === i).slice(0, 5);
+    if (item.audioUrl) urls.push(item.audioUrl);
+    return urls;
   }
 
-  async function prepare(id) {
+  let lastFail = '';
+  function makeMedia(item) {
+    if (item.audio) return item.audio;
+    const a = document.createElement('video');
+    a.preload = 'metadata';
+    a.controls = true;
+    a.playsInline = true;
+    a.volume = 0.5;
+    a.addEventListener('play', () => {
+      items.forEach((it) => { if (it.audio && it.audio !== a) it.audio.pause(); });   // un seul à la fois
+      if (!item.revealed) { item.revealed = true; showInfo(item); }                   // le nom apparaît dès qu'on lance la vidéo
+    });
+    a.addEventListener('error', () => { lastFail = 'média code ' + (a.error ? a.error.code : '?'); });
+    a._item = item;
+    item.ui = 0;
+    item.urls = urlsFor(item, quality);
+    item.audio = a;
+    a.src = item.urls[0];
+    return a;
+  }
+
+  let slots = [];            // les 16 places du premier tour, remplies au fur et à mesure du chargement
+  let loaderDone = false;
+
+  function startLoader(id) {
     lastFail = '';
+    loaderDone = false;
     const order = shuffle(usablePool());
-    if (order.length < SIZE) throw new Error('pool');
-    const got = [];
-    let cursor = 0, fails = 0;
+    let cursor = 0, fails = 0, got = 0;
     const setProgress = () => {
-      $('tn-load-text').textContent = 'Préparation des openings… ' + got.length + ' / ' + SIZE;
-      $('tn-load-bar').style.width = Math.round(got.length / SIZE * 100) + '%';
+      $('tn-load-text').textContent = 'Préparation des openings… ' + got + ' / ' + SIZE;
+      $('tn-load-bar').style.width = Math.round(got / SIZE * 100) + '%';
     };
     setProgress();
     const worker = async () => {
-      while (got.length < SIZE && id === runId) {
+      while (got < SIZE && id === runId) {
         if (cursor >= order.length || fails > 40) return;
         const f = order[cursor++];
         try {
@@ -123,25 +140,20 @@
           if (id !== runId) return;
           const c = anime ? pickTheme(anime) : null;
           if (!c) continue;
-          let audio = null, usedUrl = '';
-          for (const u of c.urls) { audio = await loadAudio(u); usedUrl = u; if (audio || id !== runId) break; }
-          // Son seul (pas de vidéo, ou elle ne charge pas) : on préfère un autre anime, sauf si on en manque
-          if (audio && usedUrl === c.audioUrl && cursor < order.length - 25) { audio = null; continue; }
-          if (id !== runId) return;
-          if (!audio) { fails++; continue; }
-          if (got.length >= SIZE) return;
+          // Pas de vidéo : on préfère un autre anime, sauf si on en manque
+          if (!c.hasVideo && cursor < order.length - 25) continue;
+          if (got >= SIZE) return;
           const song = c.t.song || null;
-          const artists = song && Array.isArray(song.artists) ? song.artists.map((a) => a.name).filter(Boolean) : [];
+          const artists = song && Array.isArray(song.artists) ? song.artists.map((x) => x.name).filter(Boolean) : [];
           const m = /(\d+)/.exec(c.t.slug || '');
-          got.push({ anime: f.title, song: song ? song.title : '', artists, num: m ? Number(m[1]) : 1, url: c.urls[0], audio });
+          const item = { anime: f.title, song: song ? song.title : '', artists, num: m ? Number(m[1]) : 1, vids: c.vids, audioUrl: c.audioUrl, urls: [], audio: null };
+          slots[got++] = item;
+          items.push(item);
           setProgress();
         } catch (e) { fails++; if (!lastFail) lastFail = 'API injoignable'; await sleep(400); }
       }
     };
-    await Promise.all([worker(), worker(), worker(), worker()]);
-    if (id !== runId) return null;
-    if (got.length < SIZE) throw new Error('incomplet');
-    return shuffle(got);
+    Promise.all([worker(), worker(), worker(), worker(), worker(), worker()]).then(() => { if (id === runId) loaderDone = true; });
   }
 
   /* ---------- Tournoi ---------- */
@@ -152,7 +164,7 @@
   let history = [];        // { round, a, b, win }
   let pair = null;
 
-  function stopAll() { items.forEach((it) => it.audio.pause()); }
+  function stopAll() { items.forEach((it) => { if (it.audio) it.audio.pause(); }); }
 
   const sides = [0, 1].map((i) => {
     const card = $(i ? 'tn-card-b' : 'tn-card-a');
@@ -168,37 +180,65 @@
     return { card };
   });
 
-  // Une vidéo qui n'a pas fini de se charger est relancée toute seule (jusqu'à 4 fois), ou avec le bouton « Recharger »
+  // Une vidéo qui n'a pas fini de se charger est relancée toute seule (après 2 essais, on passe à une autre version
+  // du même opening), ou avec le bouton « Recharger »
   function watch(v) {
     let tries = 0;
     clearTimeout(v._wd);
     const check = () => {
-      const stuck = !Number.isFinite(v.duration) || v.readyState < 2 || !!v.error;
-      if (!stuck || tries >= 4 || $('tn-match').classList.contains('hidden')) return;
+      const stuck = !Number.isFinite(v.duration) || !!v.error;   // (un téléchargement lent n'est pas « bloqué »)
+      if (!stuck || tries >= 6 || $('tn-match').classList.contains('hidden')) return;
       tries++;
       const t = v.currentTime;
-      v.load();
+      const it = v._item;
+      if (tries >= 2 && it && it.urls.length > 1) { it.ui = (it.ui + 1) % it.urls.length; v.src = it.urls[it.ui]; } else v.load();
       v.addEventListener('loadedmetadata', () => { try { v.currentTime = t; } catch (e) { /* ignoré */ } }, { once: true });
-      v._wd = setTimeout(check, 7000);
+      v._wd = setTimeout(check, 15000);
     };
-    v._wd = setTimeout(check, 7000);
+    v._wd = setTimeout(check, 15000);
   }
 
-  function showPair() {
+  // Nom de l'opening (anime, numéro, chanson) : affiché sous la vidéo une fois qu'elle a été lancée
+  function showInfo(item) {
+    if (!pair) return;
+    sides.forEach((s, i) => {
+      if (pair[i] !== item) return;
+      const box = s.card.querySelector('.tn-info');
+      box.textContent = '';
+      if (item.revealed) line(box, item, false);
+    });
+  }
+
+  const failText = () => 'Impossible de préparer 16 openings (connexion ?). Réessaie dans un instant.' + (lastFail ? ' [' + lastFail + ']' : '');
+
+  async function showPair() {
+    const id = runId;
     stopAll();
-    pair = [current[pairIdx * 2], current[pairIdx * 2 + 1]];
+    const ia = pairIdx * 2;
+    if (!(current[ia] && current[ia + 1])) {          // premier tour : les deux openings ne sont pas encore arrivés
+      show('tn-load');
+      while (id === runId && !(current[ia] && current[ia + 1])) {
+        if (loaderDone) { show('tn-start'); $('tn-start-msg').textContent = failText(); return; }
+        await sleep(150);
+      }
+      if (id !== runId) return;
+    }
+    pair = [current[ia], current[ia + 1]];
     $('tn-round').textContent = ROUND_NAMES[current.length / 2] || 'Duel';
     $('tn-count').textContent = 'Duel ' + (pairIdx + 1) + ' / ' + (current.length / 2);
     sides.forEach((s, i) => {
-      s.audio = pair[i].audio;
+      s.audio = makeMedia(pair[i]);
       s.audio.preload = 'auto';
       s.audio.currentTime = 0;
       const box = s.card.querySelector('.tn-vid');
       box.textContent = '';
       box.appendChild(s.audio);
       watch(s.audio);
+      showInfo(pair[i]);
     });
     show('tn-match');
+    // on prépare déjà le duel suivant (juste le début des vidéos)
+    [ia + 2, ia + 3].forEach((k) => { if (current[k]) makeMedia(current[k]); });
   }
 
   let afterPick = null;
@@ -225,6 +265,31 @@
     $('tn-between-next').focus();
   }
   $('tn-between-next').addEventListener('click', () => { if (afterPick) { const f = afterPick; afterPick = null; f(); } });
+
+  function setQuality(q) {
+    quality = q === 1080 ? 1080 : 720;
+    try { localStorage.setItem('opening-quiz-tn-quality', String(quality)); } catch (e) { /* ignoré */ }
+    document.querySelectorAll('.tn-q').forEach((b) => {
+      const on = Number(b.dataset.q) === quality;
+      b.classList.toggle('active', on);
+      b.setAttribute('aria-pressed', String(on));
+    });
+    items.forEach((it) => {
+      const v = it.audio;
+      if (!v) return;
+      const t = v.currentTime, wasPlaying = !v.paused;
+      it.urls = urlsFor(it, quality);
+      it.ui = 0;
+      v.src = it.urls[0];
+      v.addEventListener('loadedmetadata', () => {
+        try { v.currentTime = t; } catch (e) { /* ignoré */ }
+        if (wasPlaying) v.play().catch(() => {});
+      }, { once: true });
+      if (!$('tn-match').classList.contains('hidden')) watch(v);
+    });
+  }
+  document.querySelectorAll('.tn-q').forEach((b) => b.addEventListener('click', () => setQuality(Number(b.dataset.q))));
+  setQuality(quality);
 
   /* ---------- Fin : révélation ---------- */
   function line(parent, it, win) {
@@ -258,30 +323,23 @@
   }
 
   /* ---------- Lancement ---------- */
-  async function start() {
+  function start() {
     const id = ++runId;
     stopAll();
     $('tn-start-msg').textContent = '';
+    if (usablePool().length < SIZE) { $('tn-start-msg').textContent = 'Pas assez d\'animes avec ces difficultés : coches-en d\'autres.'; return; }
+    items = [];
+    slots = new Array(SIZE);
+    current = slots; next = []; pairIdx = 0; history = [];
     show('tn-load');
-    try {
-      const got = await prepare(id);
-      if (!got) return;
-      items = got;
-      current = got.slice(); next = []; pairIdx = 0; history = [];
-      showPair();
-    } catch (e) {
-      if (id !== runId) return;
-      show('tn-start');
-      $('tn-start-msg').textContent = e.message === 'pool'
-        ? 'Pas assez d\'animes avec ces difficultés : coches-en d\'autres.'
-        : 'Impossible de préparer 16 openings (connexion ?). Réessaie dans un instant.' + (lastFail ? ' [' + lastFail + ']' : '');
-    }
+    startLoader(id);
+    showPair();                                      // attend tout seul les deux premiers openings
   }
 
-  function quit() { runId++; stopAll(); items.forEach((it) => { it.audio.onended = null; }); show('tn-start'); }
+  function quit() { runId++; stopAll(); items.forEach((it) => { if (it.audio) it.audio.onended = null; }); show('tn-start'); }
 
   $('tn-go').addEventListener('click', start);
-  $('tn-again').addEventListener('click', () => { items.forEach((it) => it.audio.pause()); start(); });
+  $('tn-again').addEventListener('click', () => { stopAll(); start(); });
   $('tn-cancel').addEventListener('click', quit);
   $('tn-quit').addEventListener('click', () => { if (confirm('Abandonner ce tournoi ?')) quit(); });
 })();

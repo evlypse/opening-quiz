@@ -2122,6 +2122,13 @@ window.I18N_ROWS = [
 "Ergebnis ansehen ➜"
 ],
 [
+"Qualité vidéo",
+"Video quality",
+"Calidad de vídeo",
+"Qualidade do vídeo",
+"Videoqualität"
+],
+[
 "📅 Années :",
 "📅 Years:",
 "📅 Años:",
