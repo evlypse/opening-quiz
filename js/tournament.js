@@ -149,7 +149,19 @@
     });
     a._item = item;
     item.audio = a;
-    a.src = item.blobUrl || item.urls[item.ui || 0];
+    a.src = item.blobUrl || item.partUrl || item.urls[item.ui || 0];
+    if (!item.blobUrl && item.partUrl) {                                                // début seulement : on bascule sur le fichier complet dès qu'il arrive
+      ensure(item).then(() => {
+        if (item.audio !== a || !item.blobUrl) return;
+        const t = a.currentTime || 0, was = !a.paused && !a.ended;
+        a.src = item.blobUrl;
+        a.load();
+        a.addEventListener('loadedmetadata', () => {
+          try { a.currentTime = t; } catch (e) { /* ignoré */ }
+          if (was) { lastGesture = Date.now(); const pr = a.play(); if (pr && pr.catch) pr.catch(() => {}); }
+        }, { once: true });
+      });
+    }
     // Surveillance : si la vidéo ne démarre pas (pas de durée connue), on essaie une autre version du fichier
     let tries = 0;
     let timer = 0;
@@ -180,6 +192,8 @@
     item.ready = null;
     item.halfP = null;
     item.halfDone = false;
+    if (item.partUrl) { try { URL.revokeObjectURL(item.partUrl); } catch (e) { /* ignoré */ } }
+    item.partUrl = '';
     item.dl = null;
     item.skip = false;
     item.pct = 0;
@@ -202,6 +216,12 @@
       if (item.mode !== 'blob') await run(item, 1);
     })();
     return item.ready;
+  }
+
+  // Le début est reçu : on en fait un petit fichier lisible tout de suite (la suite arrive pendant que tu regardes)
+  function markHalf(item, d) {
+    item.halfDone = true;
+    try { if (item.partUrl) URL.revokeObjectURL(item.partUrl); item.partUrl = URL.createObjectURL(new Blob(d.parts, { type: 'video/webm' })); } catch (e) { item.partUrl = ''; }
   }
 
   async function run(item, frac) {
@@ -230,7 +250,7 @@
         const cr = /\/(\d+)\s*$/.exec(res.headers.get('content-range') || '');
         d.total = cr ? Number(cr[1]) : (d.got + (Number(res.headers.get('content-length')) || 0)) || d.total;
         const stopAt = frac < 1 && d.total ? Math.floor(d.total * frac) : 0;
-        if (stopAt && d.got >= stopAt) { clearTimeout(idle); try { if (res.body) res.body.cancel(); } catch (e) { /* ignoré */ } item.halfDone = true; return; }
+        if (stopAt && d.got >= stopAt) { clearTimeout(idle); try { if (res.body) res.body.cancel(); } catch (e) { /* ignoré */ } markHalf(item, d); return; }
         if (res.body && res.body.getReader) {
           const reader = res.body.getReader();
           for (;;) {
@@ -241,7 +261,7 @@
             if (stopAt && d.got >= stopAt) {                                  // moitié reçue : on s'arrête là pour l'instant
               clearTimeout(idle);
               try { await reader.cancel(); } catch (e) { /* ignoré */ }
-              item.halfDone = true;
+              markHalf(item, d);
               return;
             }
           }
@@ -268,7 +288,8 @@
     item.pct = 1;
   }
 
-  const PREP = 8;            // nombre d'openings téléchargés avant de commencer (les 4 premiers duels)
+  const HEAD = 0.25;         // part de chaque vidéo téléchargée avant de commencer (le début)
+  const PREP = 4;            // nombre d'openings téléchargés avant de commencer (les 2 premiers duels)
   let order = [], cursor = 0;   // animes tirés au sort et position dans la liste
   let slots = [];            // les 16 places du premier tour, remplies au fur et à mesure du chargement
   let loaderDone = false;
@@ -297,7 +318,7 @@
           const song = c.t.song || null;
           const artists = song && Array.isArray(song.artists) ? song.artists.map((x) => x.name).filter(Boolean) : [];
           const m = /(\d+)/.exec(c.t.slug || '');
-          const item = { anime: f.title, song: song ? song.title : '', artists, num: m ? Number(m[1]) : 1, vids: c.vids, audioUrl: c.audioUrl, urls: [], ui: 0, audio: null };
+          const item = { anime: f.title, tier: f.tier, song: song ? song.title : '', artists, num: m ? Number(m[1]) : 1, vids: c.vids, audioUrl: c.audioUrl, urls: [], ui: 0, audio: null };
           item.urls = urlsFor(item, quality);
           slots[got++] = item;
           items.push(item);
@@ -321,7 +342,7 @@
         const song = c.t.song || null;
         const artists = song && Array.isArray(song.artists) ? song.artists.map((x) => x.name).filter(Boolean) : [];
         const m = /(\d+)/.exec(c.t.slug || '');
-        const item = { anime: f.title, song: song ? song.title : '', artists, num: m ? Number(m[1]) : 1, vids: c.vids, audioUrl: c.audioUrl, urls: [], ui: 0, audio: null };
+        const item = { anime: f.title, tier: f.tier, song: song ? song.title : '', artists, num: m ? Number(m[1]) : 1, vids: c.vids, audioUrl: c.audioUrl, urls: [], ui: 0, audio: null };
         item.urls = urlsFor(item, quality);
         return item;
       } catch (e) { await sleep(300); }
@@ -331,7 +352,7 @@
 
   // Télécharge en entier toutes les vidéos de la liste : on ne montre rien tant que tout n'est pas sûr de se lancer.
   // replaceable : si une vidéo est vraiment introuvable, on tire un autre opening à sa place.
-  async function prepareAll(id, list, replaceable, from = 0, to = list.length, quiet = false, fracOf = () => 1) {
+  async function prepareAll(id, list, replaceable, from = 0, to = list.length, quiet = false, fracOf = () => 1, byTier = false) {
     if (!quiet) show('tn-load');
     const total = to - from;
     let run = true;
@@ -352,10 +373,29 @@
     };
     if (!quiet) draw();
     let next = 0;
+    const taken = new Set();
+    const rank = (it) => (it.tier === 'hard' ? 0 : it.tier === 'medium' ? 1 : 2);
+    // difficiles d'abord, puis moyens, puis faciles (les plus connus) — parmi ceux déjà arrivés
+    const pickIndex = async () => {
+      for (;;) {
+        if (id !== runId) return -1;
+        let best = -1;
+        for (let k = from; k < to; k++) {
+          if (taken.has(k) || !list[k]) continue;
+          if (best < 0 || rank(list[k]) < rank(list[best])) best = k;
+        }
+        if (best >= 0) { taken.add(best); return best; }
+        let left = false;
+        for (let k = from; k < to; k++) if (!taken.has(k)) left = true;
+        if (!left || loaderDone) return -1;
+        await sleep(150);
+      }
+    };
     const worker = async () => {
       while (id === runId) {
-        const i = from + next++;
-        if (i >= to) return;
+        let i;
+        if (byTier) { i = await pickIndex(); if (i < 0) return; }
+        else { i = from + next++; if (i >= to) return; }
         let it = list[i];
         while (!it && id === runId) {                                                // l'opening n'est pas encore arrivé
           if (loaderDone && !list[i]) return;
@@ -380,7 +420,7 @@
         }
       }
     };
-    await Promise.all([worker(), worker(), worker(), worker(), worker(), worker()]);   // le délai de démarrage domine : on en lance plusieurs à la fois
+    await Promise.all(Array.from({ length: quiet ? 3 : 4 }, () => worker()));
     run = false;
     return id === runId;
   }
@@ -401,7 +441,7 @@
     card.querySelector('.tn-reload').addEventListener('click', () => {
       const it = pair && pair[i];
       if (!it) return;
-      if (it.blobUrl) {                              // fichier déjà en mémoire : on reconstruit juste le lecteur
+      if (it.blobUrl || it.partUrl) {                // fichier (ou début) déjà en mémoire : on reconstruit juste le lecteur
         const t = it.audio ? it.audio.currentTime : 0;
         if (it.audio) { it.audio.pause(); it.audio.removeAttribute('src'); it.audio.load(); it.audio = null; }
         const a = makeMedia(it);
@@ -445,7 +485,7 @@
       if (id !== runId) return;
     }
     let p = [current[ia], current[ia + 1]];
-    for (let k = 0; k < 6 && !p.every((it) => it && it.blobUrl); k++) {        // (téléchargement encore en cours, ou changement de qualité)
+    for (let k = 0; k < 6 && !p.every((it) => it && (it.blobUrl || it.partUrl)); k++) {        // (téléchargement encore en cours, ou changement de qualité)
       if (!(await prepareAll(id, p, false))) return;
       p = [current[ia], current[ia + 1]];
     }
@@ -556,12 +596,12 @@
     show('tn-load');
     startLoader(id);
     (async () => {                                   // un seul écran : les vidéos se téléchargent au fur et à mesure qu'elles arrivent
-      // préparation : les 8 premiers openings en entier, les 8 autres à moitié ; la suite se télécharge pendant que tu joues
-      if (!(await prepareAll(id, slots, true, 0, SIZE, false, (i) => (i < PREP ? 1 : 0.5)))) return;
+      // préparation : le début de chacun des 16 openings (difficiles d'abord) ; la suite se télécharge pendant que tu joues
+      if (!(await prepareAll(id, slots, true, 0, SIZE, false, () => HEAD, true))) return;
       while (id === runId && !loaderDone) await sleep(150);
       if (id !== runId) return;
       if (slots.filter(Boolean).length < SIZE) { show('tn-start'); $('tn-start-msg').textContent = failText(); return; }
-      prepareAll(id, slots, true, PREP, SIZE, true);                      // fin des 8 derniers, en arrière-plan, sans écran
+      prepareAll(id, slots, true, 0, SIZE, true);                         // la suite, dans l'ordre des duels, sans écran
       showPair();
     })();
   }
