@@ -178,6 +178,9 @@
     if (item.blobUrl) { try { URL.revokeObjectURL(item.blobUrl); } catch (e) { /* ignoré */ } }
     item.blobUrl = '';
     item.ready = null;
+    item.halfP = null;
+    item.halfDone = false;
+    item.dl = null;
     item.skip = false;
     item.pct = 0;
     item.mode = '';
@@ -185,67 +188,87 @@
 
   // Télécharge toute la vidéo en mémoire (avec sa progression). En cas d'échec : autre version de la même vidéo,
   // puis, en dernier recours, lecture directe depuis le serveur.
-  // Téléchargement complet d'une vidéo. Si la connexion se coupe ou se bloque, on REPREND là où on s'était arrêté
-  // (au lieu de tout recommencer), d'abord sur la version d'origine, puis sur les autres versions.
-  function ensure(item) {
+  // Téléchargement d'une vidéo (en entier, ou seulement la première moitié : frac = 0.5). Si la connexion se coupe ou se
+  // bloque, on REPREND là où on s'était arrêté ; la moitié déjà reçue est gardée pour compléter plus tard.
+  function ensure(item, frac = 1) {
+    if (frac < 1) {
+      if (item.ready) return item.ready;
+      if (!item.halfP) item.halfP = run(item, frac);
+      return item.halfP;
+    }
     if (item.ready) return item.ready;
-    item.pct = 0;
     item.ready = (async () => {
-      let netErrors = 0;
-      let parts = [], got = 0, total = 0, lastIdx = -1;
-      for (let t = 0; t < 14 && !item.skip; t++) {
-        const idx = (item.ui + Math.floor(t / 4)) % item.urls.length;   // 4 essais par version
-        if (idx !== lastIdx) { parts = []; got = 0; total = 0; lastIdx = idx; }
-        const ctl = new AbortController();
-        item.abort = () => ctl.abort();
-        let idle = 0;
-        const arm = (ms) => { clearTimeout(idle); idle = setTimeout(() => ctl.abort(), ms); };
-        try {
-          arm(90000);                                          // un fichier « froid » peut mettre longtemps à démarrer
-          let res;
-          try {
-            res = await fetch(item.urls[idx], { signal: ctl.signal, headers: got ? { Range: 'bytes=' + got + '-' } : {} });
-          } catch (e) {
-            if (got && e && e.name === 'TypeError') { parts = []; got = 0; res = await fetch(item.urls[idx], { signal: ctl.signal }); }
-            else throw e;
-          }
-          if (!res.ok) throw new Error('HTTP ' + res.status);
-          if (got && res.status !== 206) { parts = []; got = 0; }              // le serveur ne reprend pas : on repart de zéro
-          const cr = /\/(\d+)\s*$/.exec(res.headers.get('content-range') || '');
-          total = cr ? Number(cr[1]) : (got + (Number(res.headers.get('content-length')) || 0)) || total;
-          if (res.body && res.body.getReader) {
-            const reader = res.body.getReader();
-            for (;;) {
-              const r = await reader.read();
-              if (r.done) break;
-              parts.push(r.value); got += r.value.length; arm(45000);
-              item.pct = Math.max(item.pct || 0, total ? Math.min(0.99, got / total) : 0.5);
-            }
-          } else {
-            const buf = new Uint8Array(await res.arrayBuffer());
-            parts.push(buf); got += buf.length;
-          }
-          clearTimeout(idle);
-          if (total && got < total) throw new Error('incomplet');                 // fichier coupé : on reprend
-          const blob = new Blob(parts, { type: 'video/webm' });
-          item.blobUrl = URL.createObjectURL(blob);
-          item.ui = idx;
-          item.pct = 1;
-          item.mode = 'blob';
-          return;
-        } catch (e) {
-          clearTimeout(idle);
-          if (item.skip) break;
-          if (e && e.name === 'TypeError') { if (++netErrors >= 3) break; }       // réseau ou accès refusé
-          await sleep(500);
-        }
-      }
-      item.mode = 'stream';                                                       // dernier recours : lecture directe
-      item.pct = 1;
+      if (item.halfP) await item.halfP;
+      if (item.mode !== 'blob') await run(item, 1);
     })();
     return item.ready;
   }
 
+  async function run(item, frac) {
+    item.pct = item.pct || 0;
+    item.frac = frac;
+    const d = item.dl || (item.dl = { parts: [], got: 0, total: 0, idx: -1 });
+    let netErrors = 0;
+    for (let t = 0; t < 14 && !item.skip; t++) {
+      const idx = (item.ui + Math.floor(t / 4)) % item.urls.length;   // 4 essais par version
+      if (idx !== d.idx) { d.parts = []; d.got = 0; d.total = 0; d.idx = idx; item.halfDone = false; }
+      const ctl = new AbortController();
+      item.abort = () => ctl.abort();
+      let idle = 0;
+      const arm = (ms) => { clearTimeout(idle); idle = setTimeout(() => ctl.abort(), ms); };
+      try {
+        arm(90000);                                          // un fichier « froid » peut mettre longtemps à démarrer
+        let res;
+        try {
+          res = await fetch(item.urls[idx], { signal: ctl.signal, headers: d.got ? { Range: 'bytes=' + d.got + '-' } : {} });
+        } catch (e) {
+          if (d.got && e && e.name === 'TypeError') { d.parts = []; d.got = 0; res = await fetch(item.urls[idx], { signal: ctl.signal }); }
+          else throw e;
+        }
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        if (d.got && res.status !== 206) { d.parts = []; d.got = 0; }          // le serveur ne reprend pas : on repart de zéro
+        const cr = /\/(\d+)\s*$/.exec(res.headers.get('content-range') || '');
+        d.total = cr ? Number(cr[1]) : (d.got + (Number(res.headers.get('content-length')) || 0)) || d.total;
+        const stopAt = frac < 1 && d.total ? Math.floor(d.total * frac) : 0;
+        if (stopAt && d.got >= stopAt) { clearTimeout(idle); try { if (res.body) res.body.cancel(); } catch (e) { /* ignoré */ } item.halfDone = true; return; }
+        if (res.body && res.body.getReader) {
+          const reader = res.body.getReader();
+          for (;;) {
+            const r = await reader.read();
+            if (r.done) break;
+            d.parts.push(r.value); d.got += r.value.length; arm(45000);
+            item.pct = Math.max(item.pct || 0, d.total ? Math.min(0.99, d.got / d.total) : 0.5);
+            if (stopAt && d.got >= stopAt) {                                  // moitié reçue : on s'arrête là pour l'instant
+              clearTimeout(idle);
+              try { await reader.cancel(); } catch (e) { /* ignoré */ }
+              item.halfDone = true;
+              return;
+            }
+          }
+        } else {
+          const buf = new Uint8Array(await res.arrayBuffer());
+          d.parts.push(buf); d.got += buf.length;
+        }
+        clearTimeout(idle);
+        if (d.total && d.got < d.total) throw new Error('incomplet');           // fichier coupé : on reprend
+        item.blobUrl = URL.createObjectURL(new Blob(d.parts, { type: 'video/webm' }));
+        item.ui = idx;
+        item.pct = 1;
+        item.mode = 'blob';
+        item.dl = null;
+        return;
+      } catch (e) {
+        clearTimeout(idle);
+        if (item.skip) break;
+        if (e && e.name === 'TypeError') { if (++netErrors >= 3) break; }       // réseau ou accès refusé
+        await sleep(500);
+      }
+    }
+    item.mode = 'stream';                                                       // dernier recours : lecture directe
+    item.pct = 1;
+  }
+
+  const PREP = 8;            // nombre d'openings téléchargés avant de commencer (les 4 premiers duels)
   let order = [], cursor = 0;   // animes tirés au sort et position dans la liste
   let slots = [];            // les 16 places du premier tour, remplies au fur et à mesure du chargement
   let loaderDone = false;
@@ -308,15 +331,17 @@
 
   // Télécharge en entier toutes les vidéos de la liste : on ne montre rien tant que tout n'est pas sûr de se lancer.
   // replaceable : si une vidéo est vraiment introuvable, on tire un autre opening à sa place.
-  async function prepareAll(id, list, replaceable) {
-    show('tn-load');
-    const total = list.length;
+  async function prepareAll(id, list, replaceable, from = 0, to = list.length, quiet = false, fracOf = () => 1) {
+    if (!quiet) show('tn-load');
+    const total = to - from;
     let run = true;
     let shown = 0;
     const draw = async () => {
       while (run && id === runId) {
-        const done = list.filter((it) => it && it.mode === 'blob').length;
-        const raw = list.reduce((a, it) => a + (it ? (it.mode === 'blob' ? 1 : Math.min(0.99, it.pct || 0)) : 0), 0) / total;
+        const part = list.slice(from, to);
+        const okIt = (it) => it && (it.mode === 'blob' || it.halfDone);
+        const done = part.filter(okIt).length;
+        const raw = part.reduce((a, it) => a + (it ? (okIt(it) ? 1 : Math.min(0.99, (it.pct || 0) / (it.frac || 1))) : 0), 0) / total;
         shown = Math.max(shown, raw);
         const frac = shown;
         $('tn-load-text').textContent = replaceable ? 'Préparation des openings… ' + done + ' / ' + total
@@ -325,12 +350,12 @@
         await sleep(150);
       }
     };
-    draw();
+    if (!quiet) draw();
     let next = 0;
     const worker = async () => {
       while (id === runId) {
-        const i = next++;
-        if (i >= total) return;
+        const i = from + next++;
+        if (i >= to) return;
         let it = list[i];
         while (!it && id === runId) {                                                // l'opening n'est pas encore arrivé
           if (loaderDone && !list[i]) return;
@@ -339,8 +364,8 @@
         }
         if (!it) return;
         for (let attempt = 0; id === runId; attempt++) {
-          await ensure(it);
-          if (it.mode === 'blob') break;
+          await ensure(it, fracOf(i));
+          if (it.mode === 'blob' || it.halfDone) break;
           if (attempt < 2) { it.skip = false; release(it); continue; }                  // on réessaie à fond
           if (!replaceable) break;
           const n = await drawReplacement(id);
@@ -419,9 +444,10 @@
       }
       if (id !== runId) return;
     }
-    const p = [current[ia], current[ia + 1]];
-    if (!p.every((it) => it.blobUrl)) {                // (après un changement de qualité par exemple)
+    let p = [current[ia], current[ia + 1]];
+    for (let k = 0; k < 6 && !p.every((it) => it && it.blobUrl); k++) {        // (téléchargement encore en cours, ou changement de qualité)
       if (!(await prepareAll(id, p, false))) return;
+      p = [current[ia], current[ia + 1]];
     }
     pair = p;
     $('tn-round').textContent = ROUND_NAMES[current.length / 2] || 'Duel';
@@ -530,9 +556,12 @@
     show('tn-load');
     startLoader(id);
     (async () => {                                   // un seul écran : les vidéos se téléchargent au fur et à mesure qu'elles arrivent
-      if (!(await prepareAll(id, slots, true))) return;
+      // préparation : les 8 premiers openings en entier, les 8 autres à moitié ; la suite se télécharge pendant que tu joues
+      if (!(await prepareAll(id, slots, true, 0, SIZE, false, (i) => (i < PREP ? 1 : 0.5)))) return;
+      while (id === runId && !loaderDone) await sleep(150);
       if (id !== runId) return;
       if (slots.filter(Boolean).length < SIZE) { show('tn-start'); $('tn-start-msg').textContent = failText(); return; }
+      prepareAll(id, slots, true, PREP, SIZE, true);                      // fin des 8 derniers, en arrière-plan, sans écran
       showPair();
     })();
   }
