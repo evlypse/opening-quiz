@@ -9,7 +9,7 @@
   const MIN_LENGTH = 0.1;
   const MAX_LENGTH = 20;          // durée maximale de l'extrait
   const MAX_ATTEMPTS = 12;        // essais max pour trouver un opening qui charge
-  const RECENT_MEMORY = 15;       // nb d'animes récents évités pour ne pas répéter
+  const RECENT_MEMORY = 40;       // nb d'animes récents évités pour ne pas répéter
   const SEARCH_DELAY = 150;       // délai (ms) avant de lancer la recherche en ligne
   const FALLBACK_TOTAL = 1000;    // si le nombre total d'openings est introuvable
   const LEVELS = ['easy', 'medium', 'hard'];
@@ -345,7 +345,7 @@
 
   const recent = [];                 // derniers animes joués
   const PLAYED_KEY = 'opening-quiz-played';
-  const PLAYED_MAX = 400;            // openings mémorisés pour ne pas les rejouer de sitôt
+  const PLAYED_MAX = 1500;            // openings mémorisés pour ne pas les rejouer de sitôt
   let playedList = [];
   try { playedList = JSON.parse(localStorage.getItem(PLAYED_KEY) || '[]').filter((x) => typeof x === 'number'); } catch (e) { playedList = []; }
   const playedSet = new Set(playedList);
@@ -1157,10 +1157,17 @@
   // Tire une difficulté parmi celles activées, puis un opening de cette difficulté.
   async function fetchRandomOpening(opts = {}) {
     const active = opts.levels ? LEVELS.filter((l) => opts.levels.includes(l)) : LEVELS.filter((l) => levels.has(l));
-    const level = pick(active.length ? active : LEVELS);
+    // Tirage pondéré : le catalogue « difficile » est de loin le plus grand, il doit revenir plus souvent
+    const bag = [];
+    (active.length ? active : LEVELS).forEach((l) => { for (let k = 0; k < (l === 'hard' ? 3 : 1); k++) bag.push(l); });
+    const level = pick(bag);
     let info;
     if (opts.genres && opts.genres.length) info = await randomOpeningGenre(opts);
-    else info = level === 'hard' ? await randomOpeningHard(opts) : await randomOpeningCurated(level, opts);
+    else if (level === 'hard') {
+      // beaucoup de tirages « difficile » sont écartés (déjà joués, anime de la liste…) : on réessaie ici
+      // plutôt que de retomber sur facile / moyen, ce qui ferait tourner en boucle les mêmes openings
+      for (let k = 0; k < 8 && !info; k++) info = await randomOpeningHard(opts);
+    } else info = await randomOpeningCurated(level, opts);
     // Openings / animes exclus par l'administrateur : on en tire un autre
     if (info && (OV_EXCLUDED.has(Number(info.themeId)) || OV_EXCLUDED_ANIMES.has(info.animeSlug))) return null;
     return info;

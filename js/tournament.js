@@ -109,7 +109,7 @@
     a.preload = 'auto';
     a.controls = true;
     a.playsInline = true;
-    a.volume = 0.5;
+    a.volume = 0.3;
     a.autoplay = false;
     a.addEventListener('play', () => {
       const ua = navigator.userActivation;                                            // vrai juste après un vrai geste
@@ -233,13 +233,15 @@
     return item.ready;
   }
 
+  let order = [], cursor = 0;   // animes tirés au sort et position dans la liste
   let slots = [];            // les 16 places du premier tour, remplies au fur et à mesure du chargement
   let loaderDone = false;
 
   function startLoader(id) {
     loaderDone = false;
-    const order = shuffle(usablePool());
-    let cursor = 0, fails = 0, got = 0, inflight = 0;
+    order = shuffle(usablePool());
+    cursor = 0;
+    let fails = 0, got = 0, inflight = 0;
     const setProgress = () => {
       $('tn-load-text').textContent = 'Préparation des openings… ' + got + ' / ' + SIZE;
       $('tn-load-bar').style.width = Math.round(got / SIZE * 100) + '%';
@@ -266,13 +268,77 @@
           item.urls = urlsFor(item, quality);
           slots[got++] = item;
           items.push(item);
-          if (got <= 2) ensure(item);                                         // les deux premiers : on commence tout de suite
           setProgress();
         } catch (e) { fails++; await sleep(400); }
         finally { inflight--; }
       }
     };
     Promise.all([worker(), worker(), worker(), worker(), worker()]).then(() => { if (id === runId) loaderDone = true; });
+  }
+
+
+  // Remplace un opening impossible à télécharger par un autre anime
+  async function drawReplacement(id) {
+    while (id === runId && cursor < order.length) {
+      const f = order[cursor++];
+      try {
+        const anime = await fetchAnime(f.slug);
+        const c = anime ? pickTheme(anime) : null;
+        if (!c || !c.hasVideo) continue;
+        const song = c.t.song || null;
+        const artists = song && Array.isArray(song.artists) ? song.artists.map((x) => x.name).filter(Boolean) : [];
+        const m = /(\d+)/.exec(c.t.slug || '');
+        const item = { anime: f.title, song: song ? song.title : '', artists, num: m ? Number(m[1]) : 1, vids: c.vids, audioUrl: c.audioUrl, urls: [], ui: 0, audio: null };
+        item.urls = urlsFor(item, quality);
+        return item;
+      } catch (e) { await sleep(300); }
+    }
+    return null;
+  }
+
+  // Télécharge en entier toutes les vidéos de la liste : on ne montre rien tant que tout n'est pas sûr de se lancer.
+  // replaceable : si une vidéo est vraiment introuvable, on tire un autre opening à sa place.
+  async function prepareAll(id, list, replaceable) {
+    show('tn-load');
+    const total = list.length;
+    let run = true;
+    const draw = async () => {
+      while (run && id === runId) {
+        const done = list.filter((it) => it && it.mode === 'blob').length;
+        const frac = list.reduce((a, it) => a + (it ? (it.mode === 'blob' ? 1 : Math.min(0.99, it.pct || 0)) : 0), 0) / total;
+        $('tn-load-text').textContent = replaceable ? 'Préparation des openings… ' + done + ' / ' + total
+          : 'Chargement des vidéos du duel… ' + Math.round(frac * 100) + ' %';
+        $('tn-load-bar').style.width = Math.round(frac * 100) + '%';
+        await sleep(150);
+      }
+    };
+    draw();
+    let next = 0;
+    const worker = async () => {
+      while (id === runId) {
+        const i = next++;
+        if (i >= total) return;
+        let it = list[i];
+        for (let attempt = 0; id === runId; attempt++) {
+          await ensure(it);
+          if (it.mode === 'blob') break;
+          if (attempt < 2) { it.skip = false; release(it); continue; }                  // on réessaie à fond
+          if (!replaceable) break;
+          const n = await drawReplacement(id);
+          if (!n) break;
+          const k = items.indexOf(it);
+          if (k >= 0) items[k] = n; else items.push(n);
+          release(it);
+          list[i] = n;
+          if (slots === current || slots[i] === it) slots[i] = n;
+          it = n;
+          attempt = -1;
+        }
+      }
+    };
+    await Promise.all([worker(), worker(), worker(), worker()]);
+    run = false;
+    return id === runId;
   }
 
   /* ---------- Tournoi ---------- */
@@ -291,8 +357,17 @@
     card.querySelector('.tn-reload').addEventListener('click', () => {
       const it = pair && pair[i];
       if (!it) return;
-      it.revealed = it.revealed || false;
-      release(it);                                  // on retélécharge cette vidéo proprement
+      if (it.blobUrl) {                              // fichier déjà en mémoire : on reconstruit juste le lecteur
+        const t = it.audio ? it.audio.currentTime : 0;
+        if (it.audio) { it.audio.pause(); it.audio.removeAttribute('src'); it.audio.load(); it.audio = null; }
+        const a = makeMedia(it);
+        const box = sides[i].card.querySelector('.tn-vid');
+        box.textContent = '';
+        box.appendChild(a);
+        if (t) a.addEventListener('loadedmetadata', () => { try { a.currentTime = t; } catch (e) { /* ignoré */ } }, { once: true });
+        return;
+      }
+      release(it);
       showPair();
     });
     return { card };
@@ -326,20 +401,8 @@
       if (id !== runId) return;
     }
     const p = [current[ia], current[ia + 1]];
-    const waits = p.map((it) => ensure(it));
-    let finished = false;
-    Promise.all(waits).then(() => { finished = true; });
-    if (!p.every((it) => it.pct >= 1)) {
-      show('tn-load');
-      const t0 = Date.now();
-      while (id === runId && !finished) {
-        if (Date.now() - t0 > 60000) p.forEach((it) => { if (it.pct < 1 && !it.skip) { it.skip = true; if (it.abort) it.abort(); } });   // trop long : lecture directe
-        const pct = Math.round(((p[0].pct || 0) + (p[1].pct || 0)) / 2 * 100);
-        $('tn-load-text').textContent = 'Chargement des vidéos du duel… ' + pct + ' %';
-        $('tn-load-bar').style.width = pct + '%';
-        await sleep(150);
-      }
-      if (id !== runId) return;
+    if (!p.every((it) => it.blobUrl)) {                // (après un changement de qualité par exemple)
+      if (!(await prepareAll(id, p, false))) return;
     }
     pair = p;
     $('tn-round').textContent = ROUND_NAMES[current.length / 2] || 'Duel';
@@ -395,7 +458,11 @@
       it.ui = 0;
       release(it);
     });
-    if (!$('tn-match').classList.contains('hidden')) showPair();      // le duel en cours est rechargé dans la nouvelle qualité
+    if (!$('tn-match').classList.contains('hidden')) {                // le duel en cours est rechargé dans la nouvelle qualité
+      const id = runId;
+      const alive = current.slice(pairIdx * 2).concat(next).filter(Boolean);
+      (async () => { if (await prepareAll(id, alive, false)) showPair(); })();
+    }
   }
   document.querySelectorAll('.tn-q').forEach((b) => b.addEventListener('click', () => setQuality(Number(b.dataset.q))));
   setQuality(quality);
@@ -447,6 +514,8 @@
       while (id === runId && !loaderDone) await sleep(200);
       if (id !== runId) return;
       if (slots.filter(Boolean).length < SIZE) { show('tn-start'); $('tn-start-msg').textContent = failText(); return; }
+      if (!(await prepareAll(id, slots, true))) return;     // les 16 vidéos sont téléchargées en entier avant de commencer
+      if (id !== runId) return;
       showPair();
     })();
   }
