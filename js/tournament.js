@@ -605,6 +605,21 @@
       while (id === runId && !loaderDone) await sleep(200);
       if (id !== runId) return;
       if (slots.filter(Boolean).length < SIZE) { show('tn-start'); $('tn-start-msg').textContent = failText(); return; }
+      // le premier duel se télécharge pendant la même préparation (un seul écran, pas de second chargement)
+      const first = [slots[0], slots[1]];
+      let done = false;
+      Promise.all(first.map((it) => ensure(it))).then(() => { done = true; });
+      let shown = 0;
+      const t0 = Date.now();
+      while (id === runId && !done) {
+        if (Date.now() - t0 > 60000) first.forEach((it) => { if (it.pct < 1 && !it.skip) { it.skip = true; if (it.abort) it.abort(); } });
+        const pct = ((first[0].pct || 0) + (first[1].pct || 0)) / 2;
+        shown = Math.max(shown, (SIZE - 1 + pct) / SIZE);
+        $('tn-load-text').textContent = 'Préparation des openings… ' + Math.min(SIZE - 1, Math.floor(shown * SIZE)) + ' / ' + SIZE;
+        $('tn-load-bar').style.width = Math.round(shown * 100) + '%';
+        await sleep(150);
+      }
+      if (id !== runId) return;
       showPair();
     })();
   }
