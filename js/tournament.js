@@ -115,11 +115,60 @@
       const ua = navigator.userActivation;                                            // vrai juste après un vrai geste
       if (ua && !ua.isActive && Date.now() - lastGesture > 2000) { a.pause(); return; }   // pas lancée par toi : on coupe
       items.forEach((it) => { if (it.audio && it.audio !== a) it.audio.pause(); });   // un seul à la fois
-      if (!item.revealed) { item.revealed = true; showInfo(item); }                   // le nom apparaît dès qu'on lance la vidéo
+      // Si la lecture ne démarre pas vraiment (vidéo « figée » ou périmée), on relance la source sans rien te demander
+      clearTimeout(a._stall);
+      a._stall = setTimeout(() => {
+        if (item.audio !== a || a.paused || a.readyState >= 3 && a.currentTime > 0) return;
+        a._rescue();
+      }, 8000);
+    });
+    a.addEventListener('playing', () => {
+      clearTimeout(a._stall);
+      if (!item.revealed) { item.revealed = true; showInfo(item); }                   // le nom n'apparaît que quand la lecture a vraiment démarré
+    });
+    a.addEventListener('pause', () => clearTimeout(a._stall));
+    a._rescue = () => {
+      if (item.audio !== a) return;
+      a._rescues = (a._rescues || 0) + 1;
+      const t = a.currentTime || 0;
+      if (a._rescues > 3 && item.blobUrl) {                                           // le fichier en mémoire pose problème : lecture directe
+        try { URL.revokeObjectURL(item.blobUrl); } catch (e) { /* ignoré */ }
+        item.blobUrl = '';
+      }
+      if (a._rescues > 1 && !item.blobUrl) item.ui = ((item.ui || 0) + (a._rescues > 3 ? 1 : 0)) % item.urls.length;
+      a.src = item.blobUrl || item.urls[item.ui || 0];
+      a.load();
+      const go = () => { a.removeEventListener('loadedmetadata', go); try { a.currentTime = t; } catch (e) { /* ignoré */ } lastGesture = Date.now(); const pr = a.play(); if (pr && pr.catch) pr.catch(() => {}); };
+      a.addEventListener('loadedmetadata', go);
+      clearTimeout(a._stall);
+      if (a._rescues < 6) a._stall = setTimeout(() => { if (item.audio === a && !a.paused && !(a.readyState >= 3)) a._rescue(); }, 12000);
+    };
+    a.addEventListener('waiting', () => {
+      clearTimeout(a._stall);
+      a._stall = setTimeout(() => { if (item.audio === a && !a.paused && !(a.readyState >= 3)) a._rescue(); }, 15000);
     });
     a._item = item;
     item.audio = a;
     a.src = item.blobUrl || item.urls[item.ui || 0];
+    // Surveillance : si la vidéo ne démarre pas (pas de durée connue), on essaie une autre version du fichier
+    let tries = 0;
+    let timer = 0;
+    const watch = () => {
+      clearTimeout(timer);
+      timer = setTimeout(() => { if (item.audio === a && !(a.readyState >= 1)) next(); }, tries < 2 ? 20000 : 12000);
+    };
+    const next = () => {
+      if (item.audio !== a || a.readyState >= 1 || tries >= 6) return;
+      tries++;
+      if (item.blobUrl) { try { URL.revokeObjectURL(item.blobUrl); } catch (e) { /* ignoré */ } item.blobUrl = ''; }
+      if (tries > 2) item.ui = ((item.ui || 0) + 1) % item.urls.length;   // 2 relances de la version d'origine avant d'en changer
+      a.src = item.urls[item.ui || 0];
+      a.load();
+      watch();
+    };
+    a.addEventListener('error', () => setTimeout(next, 600));
+    a.addEventListener('loadedmetadata', () => clearTimeout(timer));
+    watch();
     return a;
   }
 
@@ -141,14 +190,14 @@
     item.pct = 0;
     item.ready = (async () => {
       let netErrors = 0;
-      for (let t = 0; t < 6 && !item.skip; t++) {
-        const idx = (item.ui + t) % item.urls.length;
+      for (let t = 0; t < 8 && !item.skip; t++) {
+        const idx = (item.ui + Math.max(0, t - 2)) % item.urls.length;   // 3 essais sur la version d'origine, puis les autres
         const ctl = new AbortController();
         item.abort = () => ctl.abort();
         let idle = 0;
-        const arm = (ms) => { clearTimeout(idle); idle = setTimeout(() => ctl.abort(), ms || 12000); };   // rien ne vient depuis 12 s : on change de source
+        const arm = (ms) => { clearTimeout(idle); idle = setTimeout(() => ctl.abort(), ms || 20000); };   // rien ne vient depuis 20 s : on réessaie
         try {
-          arm(15000);
+          arm(25000);
           const res = await fetch(item.urls[idx], { signal: ctl.signal });
           if (!res.ok) throw new Error('HTTP ' + res.status);
           const total = Number(res.headers.get('content-length')) || 0;
@@ -284,7 +333,7 @@
       show('tn-load');
       const t0 = Date.now();
       while (id === runId && !finished) {
-        if (Date.now() - t0 > 30000) p.forEach((it) => { if (it.pct < 1 && !it.skip) { it.skip = true; if (it.abort) it.abort(); } });   // trop long : lecture directe
+        if (Date.now() - t0 > 60000) p.forEach((it) => { if (it.pct < 1 && !it.skip) { it.skip = true; if (it.abort) it.abort(); } });   // trop long : lecture directe
         const pct = Math.round(((p[0].pct || 0) + (p[1].pct || 0)) / 2 * 100);
         $('tn-load-text').textContent = 'Chargement des vidéos du duel… ' + pct + ' %';
         $('tn-load-bar').style.width = pct + '%';
