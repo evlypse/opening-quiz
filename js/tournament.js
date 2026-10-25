@@ -237,7 +237,7 @@
       let idle = 0;
       const arm = (ms) => { clearTimeout(idle); idle = setTimeout(() => ctl.abort(), ms); };
       try {
-        arm(90000);                                          // un fichier « froid » peut mettre longtemps à démarrer
+        arm(25000);
         let res;
         try {
           res = await fetch(item.urls[idx], { signal: ctl.signal, headers: d.got ? { Range: 'bytes=' + d.got + '-' } : {} });
@@ -256,7 +256,7 @@
           for (;;) {
             const r = await reader.read();
             if (r.done) break;
-            d.parts.push(r.value); d.got += r.value.length; arm(45000);
+            d.parts.push(r.value); d.got += r.value.length; arm(20000);
             item.pct = Math.max(item.pct || 0, d.total ? Math.min(0.99, d.got / d.total) : 0.5);
             if (stopAt && d.got >= stopAt) {                                  // moitié reçue : on s'arrête là pour l'instant
               clearTimeout(idle);
@@ -299,7 +299,10 @@
     order = shuffle(usablePool());
     cursor = 0;
     let fails = 0, got = 0, inflight = 0;
-    const setProgress = () => {};                                          // l'affichage est géré par prepareAll (un seul écran)
+    const setProgress = () => {
+      $('tn-load-text').textContent = 'Préparation des openings… ' + got + ' / ' + SIZE;
+      $('tn-load-bar').style.width = Math.round(got / SIZE * 100) + '%';
+    };
     setProgress();
     const worker = async () => {
       while (id === runId) {
@@ -322,6 +325,7 @@
           item.urls = urlsFor(item, quality);
           slots[got++] = item;
           items.push(item);
+          if (got <= 2) ensure(item);                                         // les deux premiers : on commence tout de suite
           setProgress();
         } catch (e) { fails++; await sleep(400); }
         finally { inflight--; }
@@ -357,8 +361,10 @@
     const total = to - from;
     let run = true;
     let shown = 0;
+    const t0 = Date.now();
     const draw = async () => {
       while (run && id === runId) {
+        if (!replaceable && Date.now() - t0 > 60000) list.forEach((it) => { if (it && it.pct < 1 && !it.skip) { it.skip = true; if (it.abort) it.abort(); } });
         const part = list.slice(from, to);
         const okIt = (it) => it && (it.mode === 'blob' || it.halfDone);
         const done = part.filter(okIt).length;
@@ -595,13 +601,10 @@
     current = slots; next = []; pairIdx = 0; history = [];
     show('tn-load');
     startLoader(id);
-    (async () => {                                   // un seul écran : les vidéos se téléchargent au fur et à mesure qu'elles arrivent
-      // préparation : le début de chacun des 16 openings (difficiles d'abord) ; la suite se télécharge pendant que tu joues
-      if (!(await prepareAll(id, slots, true, 0, SIZE, false, () => HEAD, true))) return;
-      while (id === runId && !loaderDone) await sleep(150);
+    (async () => {                                   // on attend que les 16 soient trouvés (données seulement)
+      while (id === runId && !loaderDone) await sleep(200);
       if (id !== runId) return;
       if (slots.filter(Boolean).length < SIZE) { show('tn-start'); $('tn-start-msg').textContent = failText(); return; }
-      prepareAll(id, slots, true, 0, SIZE, true);                         // la suite, dans l'ordre des duels, sans écran
       showPair();
     })();
   }
