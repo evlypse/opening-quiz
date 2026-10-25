@@ -255,10 +255,7 @@
     order = shuffle(usablePool());
     cursor = 0;
     let fails = 0, got = 0, inflight = 0;
-    const setProgress = () => {
-      $('tn-load-text').textContent = 'Préparation des openings… ' + got + ' / ' + SIZE;
-      $('tn-load-bar').style.width = Math.round(got / SIZE * 100) + '%';
-    };
+    const setProgress = () => {};                                          // l'affichage est géré par prepareAll (un seul écran)
     setProgress();
     const worker = async () => {
       while (id === runId) {
@@ -332,6 +329,12 @@
         const i = next++;
         if (i >= total) return;
         let it = list[i];
+        while (!it && id === runId) {                                                // l'opening n'est pas encore arrivé
+          if (loaderDone && !list[i]) return;
+          await sleep(150);
+          it = list[i];
+        }
+        if (!it) return;
         for (let attempt = 0; id === runId; attempt++) {
           await ensure(it);
           if (it.mode === 'blob') break;
@@ -523,12 +526,10 @@
     current = slots; next = []; pairIdx = 0; history = [];
     show('tn-load');
     startLoader(id);
-    (async () => {                                   // on attend que les 16 soient prêts (début déjà chargé)
-      while (id === runId && !loaderDone) await sleep(200);
+    (async () => {                                   // un seul écran : les vidéos se téléchargent au fur et à mesure qu'elles arrivent
+      if (!(await prepareAll(id, slots, true))) return;
       if (id !== runId) return;
       if (slots.filter(Boolean).length < SIZE) { show('tn-start'); $('tn-start-msg').textContent = failText(); return; }
-      if (!(await prepareAll(id, slots, true))) return;     // les 16 vidéos sont téléchargées en entier avant de commencer
-      if (id !== runId) return;
       showPair();
     })();
   }
