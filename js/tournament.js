@@ -258,6 +258,10 @@
             if (r.done) break;
             d.parts.push(r.value); d.got += r.value.length; arm(20000);
             item.pct = Math.max(item.pct || 0, d.total ? Math.min(0.99, d.got / d.total) : 0.5);
+            if (d.total && d.got >= d.total) {          // tout est là : inutile d'attendre la fermeture
+              try { await reader.cancel(); } catch (e) { /* ignoré */ }
+              break;
+            }
             if (stopAt && d.got >= stopAt) {                                  // moitié reçue : on s'arrête là pour l'instant
               clearTimeout(idle);
               try { await reader.cancel(); } catch (e) { /* ignoré */ }
@@ -279,6 +283,11 @@
         return;
       } catch (e) {
         clearTimeout(idle);
+        if (d.total && d.got >= d.total) {                                      // tout était déjà reçu : on termine
+          item.blobUrl = URL.createObjectURL(new Blob(d.parts, { type: 'video/webm' }));
+          item.ui = d.idx; item.pct = 1; item.mode = 'blob'; item.dl = null;
+          return;
+        }
         if (item.skip) break;
         if (e && e.name === 'TypeError') { if (++netErrors >= 3) break; }       // réseau ou accès refusé
         await sleep(500);
@@ -411,7 +420,7 @@
         if (!it) return;
         for (let attempt = 0; id === runId; attempt++) {
           await ensure(it, fracOf(i));
-          if (it.mode === 'blob' || it.halfDone) break;
+          if (it.mode === 'blob' || it.halfDone || (!replaceable && it.mode === 'stream')) break;
           if (attempt < 2) { it.skip = false; release(it); continue; }                  // on réessaie à fond
           if (!replaceable) break;
           const n = await drawReplacement(id);
@@ -491,7 +500,7 @@
       if (id !== runId) return;
     }
     let p = [current[ia], current[ia + 1]];
-    for (let k = 0; k < 6 && !p.every((it) => it && (it.blobUrl || it.partUrl)); k++) {        // (téléchargement encore en cours, ou changement de qualité)
+    for (let k = 0; k < 3 && !p.every((it) => it && (it.blobUrl || it.partUrl || it.mode === 'stream')); k++) {        // (téléchargement encore en cours, ou changement de qualité)
       if (!(await prepareAll(id, p, false))) return;
       p = [current[ia], current[ia + 1]];
     }
