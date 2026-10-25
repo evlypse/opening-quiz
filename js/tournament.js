@@ -185,36 +185,49 @@
 
   // Télécharge toute la vidéo en mémoire (avec sa progression). En cas d'échec : autre version de la même vidéo,
   // puis, en dernier recours, lecture directe depuis le serveur.
+  // Téléchargement complet d'une vidéo. Si la connexion se coupe ou se bloque, on REPREND là où on s'était arrêté
+  // (au lieu de tout recommencer), d'abord sur la version d'origine, puis sur les autres versions.
   function ensure(item) {
     if (item.ready) return item.ready;
     item.pct = 0;
     item.ready = (async () => {
       let netErrors = 0;
-      for (let t = 0; t < 8 && !item.skip; t++) {
-        const idx = (item.ui + Math.max(0, t - 2)) % item.urls.length;   // 3 essais sur la version d'origine, puis les autres
+      let parts = [], got = 0, total = 0, lastIdx = -1;
+      for (let t = 0; t < 14 && !item.skip; t++) {
+        const idx = (item.ui + Math.floor(t / 4)) % item.urls.length;   // 4 essais par version
+        if (idx !== lastIdx) { parts = []; got = 0; total = 0; lastIdx = idx; }
         const ctl = new AbortController();
         item.abort = () => ctl.abort();
         let idle = 0;
-        const arm = (ms) => { clearTimeout(idle); idle = setTimeout(() => ctl.abort(), ms || 20000); };   // rien ne vient depuis 20 s : on réessaie
+        const arm = (ms) => { clearTimeout(idle); idle = setTimeout(() => ctl.abort(), ms); };
         try {
           arm(25000);
-          const res = await fetch(item.urls[idx], { signal: ctl.signal });
+          let res;
+          try {
+            res = await fetch(item.urls[idx], { signal: ctl.signal, headers: got ? { Range: 'bytes=' + got + '-' } : {} });
+          } catch (e) {
+            if (got && e && e.name === 'TypeError') { parts = []; got = 0; res = await fetch(item.urls[idx], { signal: ctl.signal }); }
+            else throw e;
+          }
           if (!res.ok) throw new Error('HTTP ' + res.status);
-          const total = Number(res.headers.get('content-length')) || 0;
-          let blob;
+          if (got && res.status !== 206) { parts = []; got = 0; }              // le serveur ne reprend pas : on repart de zéro
+          const cr = /\/(\d+)\s*$/.exec(res.headers.get('content-range') || '');
+          total = cr ? Number(cr[1]) : (got + (Number(res.headers.get('content-length')) || 0)) || total;
           if (res.body && res.body.getReader) {
             const reader = res.body.getReader();
-            const parts = [];
-            let got = 0;
             for (;;) {
               const r = await reader.read();
               if (r.done) break;
-              parts.push(r.value); got += r.value.length; arm();
-              item.pct = total ? Math.min(0.99, got / total) : 0.5;
+              parts.push(r.value); got += r.value.length; arm(20000);
+              item.pct = Math.max(item.pct || 0, total ? Math.min(0.99, got / total) : 0.5);
             }
-            blob = new Blob(parts, { type: res.headers.get('content-type') || 'video/webm' });
-          } else blob = await res.blob();
+          } else {
+            const buf = new Uint8Array(await res.arrayBuffer());
+            parts.push(buf); got += buf.length;
+          }
           clearTimeout(idle);
+          if (total && got < total) throw new Error('incomplet');                 // fichier coupé : on reprend
+          const blob = new Blob(parts, { type: 'video/webm' });
           item.blobUrl = URL.createObjectURL(blob);
           item.ui = idx;
           item.pct = 1;
@@ -223,11 +236,11 @@
         } catch (e) {
           clearTimeout(idle);
           if (item.skip) break;
-          if (e && e.name === 'TypeError') { if (++netErrors >= 2) break; }   // réseau ou accès refusé : on retente une fois
-          await sleep(400);
+          if (e && e.name === 'TypeError') { if (++netErrors >= 3) break; }       // réseau ou accès refusé
+          await sleep(500);
         }
       }
-      item.mode = 'stream';                                                   // dernier recours : lecture directe
+      item.mode = 'stream';                                                       // dernier recours : lecture directe
       item.pct = 1;
     })();
     return item.ready;
@@ -336,7 +349,7 @@
         }
       }
     };
-    await Promise.all([worker(), worker(), worker(), worker()]);
+    await Promise.all([worker(), worker(), worker()]);
     run = false;
     return id === runId;
   }
