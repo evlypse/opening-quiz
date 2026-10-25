@@ -117,31 +117,34 @@
       items.forEach((it) => { if (it.audio && it.audio !== a) it.audio.pause(); });   // un seul à la fois
       // Si la lecture ne démarre pas vraiment (vidéo « figée » ou périmée), on relance la source sans rien te demander
       clearTimeout(a._stall);
+      const from = a.currentTime;
       a._stall = setTimeout(() => {
-        if (item.audio !== a || a.paused || a.readyState >= 3 && a.currentTime > 0) return;
+        if (item.audio !== a || a.paused || a.currentTime > from + 0.4) return;       // ça avance : tout va bien
         a._rescue();
-      }, 8000);
+      }, 5000);
     });
-    a.addEventListener('playing', () => {
-      clearTimeout(a._stall);
-      if (!item.revealed) { item.revealed = true; showInfo(item); }                   // le nom n'apparaît que quand la lecture a vraiment démarré
+    a.addEventListener('timeupdate', () => {
+      if (!item.revealed && !a.paused && a.currentTime >= 0.6) {                      // le nom n'apparaît que quand l'image avance vraiment
+        item.revealed = true; clearTimeout(a._stall); showInfo(item);
+      }
     });
     a.addEventListener('pause', () => clearTimeout(a._stall));
     a._rescue = () => {
       if (item.audio !== a) return;
       a._rescues = (a._rescues || 0) + 1;
       const t = a.currentTime || 0;
-      if (a._rescues > 3 && item.blobUrl) {                                           // le fichier en mémoire pose problème : lecture directe
-        try { URL.revokeObjectURL(item.blobUrl); } catch (e) { /* ignoré */ }
+      if (a._rescues > 1 && (item.blobUrl || item.partUrl)) {                         // le fichier en mémoire pose problème : lecture directe
+        try { if (item.blobUrl) URL.revokeObjectURL(item.blobUrl); } catch (e) { /* ignoré */ }
         item.blobUrl = '';
+        item.partUrl = '';
       }
-      if (a._rescues > 1 && !item.blobUrl) item.ui = ((item.ui || 0) + (a._rescues > 3 ? 1 : 0)) % item.urls.length;
-      a.src = item.blobUrl || item.urls[item.ui || 0];
+      if (a._rescues > 3 && !item.blobUrl) item.ui = ((item.ui || 0) + 1) % item.urls.length;
+      a.src = item.blobUrl || item.partUrl || item.urls[item.ui || 0];
       a.load();
       const go = () => { a.removeEventListener('loadedmetadata', go); try { a.currentTime = t; } catch (e) { /* ignoré */ } lastGesture = Date.now(); const pr = a.play(); if (pr && pr.catch) pr.catch(() => {}); };
       a.addEventListener('loadedmetadata', go);
       clearTimeout(a._stall);
-      if (a._rescues < 6) a._stall = setTimeout(() => { if (item.audio === a && !a.paused && !(a.readyState >= 3)) a._rescue(); }, 12000);
+      if (a._rescues < 6) a._stall = setTimeout(() => { if (item.audio === a && !a.paused && a.currentTime < t + 0.4) a._rescue(); }, 9000);
     };
     a.addEventListener('waiting', () => {
       clearTimeout(a._stall);
@@ -614,20 +617,8 @@
       while (id === runId && !loaderDone) await sleep(200);
       if (id !== runId) return;
       if (slots.filter(Boolean).length < SIZE) { show('tn-start'); $('tn-start-msg').textContent = failText(); return; }
-      // le premier duel se télécharge pendant la même préparation (un seul écran, pas de second chargement)
-      const first = [slots[0], slots[1]];
-      let done = false;
-      Promise.all(first.map((it) => ensure(it))).then(() => { done = true; });
-      let shown = 0;
-      const t0 = Date.now();
-      while (id === runId && !done) {
-        if (Date.now() - t0 > 60000) first.forEach((it) => { if (it.pct < 1 && !it.skip) { it.skip = true; if (it.abort) it.abort(); } });
-        const pct = ((first[0].pct || 0) + (first[1].pct || 0)) / 2;
-        shown = Math.max(shown, (SIZE - 1 + pct) / SIZE);
-        $('tn-load-text').textContent = 'Préparation des openings… ' + Math.min(SIZE - 1, Math.floor(shown * SIZE)) + ' / ' + SIZE;
-        $('tn-load-bar').style.width = Math.round(shown * 100) + '%';
-        await sleep(150);
-      }
+      // préparation : les 16 vidéos du premier tour (les 8 duels) sont téléchargées en entier, difficiles d'abord
+      if (!(await prepareAll(id, slots, true, 0, SIZE, false, () => 1, true))) return;
       if (id !== runId) return;
       showPair();
     })();
