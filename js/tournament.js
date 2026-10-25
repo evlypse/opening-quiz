@@ -201,7 +201,7 @@
         let idle = 0;
         const arm = (ms) => { clearTimeout(idle); idle = setTimeout(() => ctl.abort(), ms); };
         try {
-          arm(25000);
+          arm(90000);                                          // un fichier « froid » peut mettre longtemps à démarrer
           let res;
           try {
             res = await fetch(item.urls[idx], { signal: ctl.signal, headers: got ? { Range: 'bytes=' + got + '-' } : {} });
@@ -218,7 +218,7 @@
             for (;;) {
               const r = await reader.read();
               if (r.done) break;
-              parts.push(r.value); got += r.value.length; arm(20000);
+              parts.push(r.value); got += r.value.length; arm(45000);
               item.pct = Math.max(item.pct || 0, total ? Math.min(0.99, got / total) : 0.5);
             }
           } else {
@@ -312,10 +312,13 @@
     show('tn-load');
     const total = list.length;
     let run = true;
+    let shown = 0;
     const draw = async () => {
       while (run && id === runId) {
         const done = list.filter((it) => it && it.mode === 'blob').length;
-        const frac = list.reduce((a, it) => a + (it ? (it.mode === 'blob' ? 1 : Math.min(0.99, it.pct || 0)) : 0), 0) / total;
+        const raw = list.reduce((a, it) => a + (it ? (it.mode === 'blob' ? 1 : Math.min(0.99, it.pct || 0)) : 0), 0) / total;
+        shown = Math.max(shown, raw);
+        const frac = shown;
         $('tn-load-text').textContent = replaceable ? 'Préparation des openings… ' + done + ' / ' + total
           : 'Chargement des vidéos du duel… ' + Math.round(frac * 100) + ' %';
         $('tn-load-bar').style.width = Math.round(frac * 100) + '%';
@@ -352,7 +355,7 @@
         }
       }
     };
-    await Promise.all([worker(), worker(), worker()]);
+    await Promise.all([worker(), worker(), worker(), worker(), worker(), worker()]);   // le délai de démarrage domine : on en lance plusieurs à la fois
     run = false;
     return id === runId;
   }
