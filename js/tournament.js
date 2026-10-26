@@ -311,7 +311,10 @@
     order = shuffle(usablePool());
     cursor = 0;
     let fails = 0, got = 0, inflight = 0;
-    const setProgress = () => {};            // l'affichage (un seul compteur) est géré par prepareAll
+    const setProgress = () => {
+      $('tn-load-text').textContent = 'Préparation des openings… ' + Math.min(got, SIZE - 1) + ' / ' + SIZE;   // le dernier se valide quand le 1er duel est prêt
+      $('tn-load-bar').style.width = Math.round(Math.min(got, SIZE - 1) / SIZE * 100) + '%';
+    };
     setProgress();
     const worker = async () => {
       while (id === runId) {
@@ -606,12 +609,21 @@
     current = slots; next = []; pairIdx = 0; history = [];
     show('tn-load');
     startLoader(id);
-    (async () => {
-      // un seul écran : chaque opening est téléchargé dès qu'il est trouvé (4 premiers en entier, début des 12 autres)
-      if (!(await prepareAll(id, slots, true, 0, SIZE, false, (i) => (i < PREP ? 1 : HEAD)))) return;
+    (async () => {                                   // 1) on trouve les 16 openings  2) on télécharge le premier duel  3) c'est parti
+      while (id === runId && !loaderDone) await sleep(200);
       if (id !== runId) return;
       if (slots.filter(Boolean).length < SIZE) { show('tn-start'); $('tn-start-msg').textContent = failText(); return; }
-      prepareAll(id, slots, true, 0, SIZE, true);         // le reste des vidéos, dans l'ordre des duels, sans écran
+      const first = [slots[0], slots[1]];
+      let ready = false;
+      Promise.all(first.map((it) => ensure(it))).then(() => { ready = true; });
+      const t0 = Date.now();
+      while (id === runId && !ready) {
+        if (Date.now() - t0 > 60000) first.forEach((it) => { if (it.pct < 1 && !it.skip) { it.skip = true; if (it.abort) it.abort(); } });   // trop long : lecture directe
+        const pct = ((first[0].pct || 0) + (first[1].pct || 0)) / 2;
+        $('tn-load-bar').style.width = Math.round((SIZE - 1 + pct) / SIZE * 100) + '%';
+        await sleep(150);
+      }
+      if (id !== runId) return;
       showPair();
     })();
   }
