@@ -153,7 +153,7 @@
     a._item = item;
     item.audio = a;
     a.src = item.blobUrl || item.partUrl || item.urls[item.ui || 0];
-    if (!item.blobUrl && item.partUrl) {                                                // début seulement : on bascule sur le fichier complet dès qu'il arrive
+    if (!item.blobUrl) {                                                                // début ou lecture directe : on bascule sur le fichier complet dès qu'il arrive
       ensure(item).then(() => {
         if (item.audio !== a || !item.blobUrl) return;
         const t = a.currentTime || 0, was = !a.paused && !a.ended;
@@ -503,10 +503,6 @@
       if (id !== runId) return;
     }
     let p = [current[ia], current[ia + 1]];
-    for (let k = 0; k < 3 && !p.every((it) => it && (it.blobUrl || it.partUrl || it.mode === 'stream')); k++) {        // (téléchargement encore en cours, ou changement de qualité)
-      if (!(await prepareAll(id, p, false))) return;
-      p = [current[ia], current[ia + 1]];
-    }
     pair = p;
     $('tn-round').textContent = ROUND_NAMES[current.length / 2] || 'Duel';
     $('tn-count').textContent = 'Duel ' + (pairIdx + 1) + ' / ' + (current.length / 2);
@@ -561,10 +557,10 @@
       it.ui = 0;
       release(it);
     });
-    if (!$('tn-match').classList.contains('hidden')) {                // le duel en cours est rechargé dans la nouvelle qualité
-      const id = runId;
+    if (!$('tn-match').classList.contains('hidden')) {                // le duel en cours repart tout de suite, dans la nouvelle qualité
       const alive = current.slice(pairIdx * 2).concat(next).filter(Boolean);
-      (async () => { if (await prepareAll(id, alive, false)) showPair(); })();
+      showPair();
+      prepareAll(runId, alive, false, 0, alive.length, true);          // et les vidéos se retéléchargent en arrière-plan
     }
   }
   document.querySelectorAll('.tn-q').forEach((b) => b.addEventListener('click', () => setQuality(Number(b.dataset.q))));
@@ -617,9 +613,10 @@
       while (id === runId && !loaderDone) await sleep(200);
       if (id !== runId) return;
       if (slots.filter(Boolean).length < SIZE) { show('tn-start'); $('tn-start-msg').textContent = failText(); return; }
-      // préparation : les 16 vidéos du premier tour (les 8 duels) sont téléchargées en entier, difficiles d'abord
-      if (!(await prepareAll(id, slots, true, 0, SIZE, false, () => 1, true))) return;
+      // préparation : les 4 premiers openings en entier, puis le début (un quart) des 12 autres ; le reste arrive pendant que tu joues
+      if (!(await prepareAll(id, slots, true, 0, SIZE, false, (i) => (i < PREP ? 1 : HEAD)))) return;
       if (id !== runId) return;
+      prepareAll(id, slots, true, 0, SIZE, true);         // le reste des vidéos, dans l'ordre des duels, sans écran
       showPair();
     })();
   }
