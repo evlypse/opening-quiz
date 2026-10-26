@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#f4f4f8">
+  <title>Extraits éclair</title>
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <link rel="icon" href="favicon-32.png" sizes="32x32" type="image/png">
+  <link rel="apple-touch-icon" href="apple-touch-icon.png">
+  <link rel="manifest" href="site.webmanifest">
+  <link rel="stylesheet" href="css/style.css?v=20261068">
+</head>
+<body data-mode="speed">
+
+  <!-- Décor animé (purement visuel) -->
+  <div class="deco" aria-hidden="true">
+    <span></span><span></span><span></span><span></span><span></span><span></span>
+  </div>
+
+  <header class="top">
+    <div class="brand">
+      <h1>Extraits éclair</h1>
+    </div>
+
+    <div class="top-right">
+      <!-- Langue -->
+      <select id="lang-select" class="lang-select" aria-label="Langue"></select>
+
+      <!-- Aide : survol sur ordinateur, appui sur téléphone -->
+      <div id="help" class="help">
+        <button id="help-btn" class="btn secondary square" type="button" aria-describedby="help-box" aria-label="Aide">?</button>
+        <div id="help-box" class="help-box" role="tooltip">
+          <h3>Jouer</h3>
+          <ul>
+            <li data-i18n-html="sp1">L'opening démarre <b>toujours au début</b>. Tu entends d'abord <b>0,1 s</b> ; chaque erreur (ou le bouton <b>Plus de musique</b>) débloque un extrait plus long : <b>0,2 s → 0,5 s → 2 s → 5 s</b>.</li>
+            <li data-i18n-html="sp2">Trouve <b>l'anime</b> (et le <b>numéro</b> si l'option est cochée) le plus tôt possible : <b>5 points</b> à 0,1 s, <b>4</b> à 0,2 s, <b>3</b> à 0,5 s, <b>2</b> à 2 s, <b>1</b> à 5 s. Après le dernier extrait, une erreur ou un abandon rapporte 0.</li>
+            <li data-i18n-html="sp3">Les réglages (difficultés, genres, années, numéro, vidéo automatique) sont les mêmes que dans le jeu principal et se partagent avec lui.</li>
+          </ul>
+
+          <h3>Crédits</h3>
+          <p>Créé par Lypse avec l'aide de Claude AI.</p>
+          <!-- FIN DES RÈGLES -->
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- Les 3 jeux -->
+  <nav class="modes" aria-label="Jeux">
+    <a class="mode-tab" href="index.html">🎵 Devine l'opening</a>
+    <a class="mode-tab active" href="speed.html" aria-current="page">⏱ Extraits éclair</a>
+    <a class="mode-tab" href="tournament.html">🏆 Tournoi</a>
+  </nav>
+
+
+  <main>
+
+    <!-- Réglages : tout au même endroit -->
+    <details id="settings" class="card settings" open>
+      <summary>⚙ Réglages</summary>
+      <div class="set-body">
+        <div class="set-row">
+          <span class="set-label">Difficultés</span>
+          <!-- Difficultés : on peut en activer plusieurs en même temps -->
+          <div class="mode" role="group" aria-label="Difficultés">
+            <button id="lvl-easy" class="seg active" type="button" aria-pressed="true">Facile</button>
+            <button id="lvl-medium" class="seg active" type="button" aria-pressed="true">Moyen</button>
+            <button id="lvl-hard" class="seg active" type="button" aria-pressed="true">Difficile</button>
+          </div>
+        </div>
+    <div class="filter-row">
+    <details id="genre-box" class="genre-box">
+      <summary>🎭 Genres : <span id="genre-label">tous</span></summary>
+      <div class="genre-body">
+        <div id="genre-chips" class="genre-chips"></div>
+        <p id="genre-info" class="lib-info"></p>
+        <button id="genre-clear" class="btn secondary mini2" type="button">Tout décocher</button>
+      </div>
+    </details>
+    <details id="year-box" class="genre-box">
+      <summary>📅 Années : <span id="year-label">toutes</span></summary>
+      <div class="genre-body">
+        <div class="year-row">
+          <label for="year-min">De</label>
+          <input id="year-min" type="number" min="1960" max="2100" step="1" placeholder="1960" inputmode="numeric">
+          <label for="year-max">à</label>
+          <input id="year-max" type="number" min="1960" max="2100" step="1" placeholder="2026" inputmode="numeric">
+        </div>
+        <p id="year-info" class="lib-info"></p>
+        <button id="year-clear" class="btn secondary mini2" type="button">Toutes les années</button>
+      </div>
+    </details>
+    </div>
+        <div class="options">
+          <label class="opt"><input id="opt-number" type="checkbox" checked> Deviner le numéro d'opening</label>
+          <label class="opt"><input id="opt-autovideo" type="checkbox" checked> Vidéo automatique</label>
+        </div>
+      </div>
+    </details>
+
+    <!-- Lecteur audio -->
+    <section id="player-card" class="card">
+      <p id="notice" class="notice hidden"></p>
+
+      <div class="player-row">
+        <button id="play-btn" class="btn big" type="button" disabled>Chargement…</button>
+
+        <!-- Égaliseur décoratif : s'anime pendant la lecture -->
+        <div class="eq" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div>
+
+        <div class="volume">
+          <button id="vol-btn" class="btn secondary square" type="button" aria-label="Volume">🔊</button>
+          <div id="vol-panel" class="vol-panel hidden">
+            <input id="vol-range" type="range" min="0" max="100" value="50" aria-label="Volume">
+            <span id="vol-val">50%</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="seek-row">
+        <span id="time-cur" class="time">0:00</span>
+        <input id="seek" type="range" min="0" max="5" step="0.01" value="0" disabled aria-label="Position dans l'audio">
+        <span id="time-max" class="time">0:05</span>
+      </div>
+
+      <p id="speed-score" class="speed-score">Score : 0</p>
+      <ol id="stages" class="stages" aria-label="Extraits"></ol>
+
+      <p id="status" class="status"></p>
+
+      <!-- éléments dont le jeu principal a besoin (masqués ici) -->
+      <div class="speed-hidden">
+      <!-- Durée de l'extrait (0,1 à 20 secondes) -->
+      <div class="length-row">
+        <label for="length-input">Extrait</label>
+        <button id="len-minus" class="btn secondary mini" type="button" aria-label="Moins de secondes">−</button>
+        <input id="length-input" type="number" min="0.1" max="20" step="0.1" value="5" inputmode="decimal">
+        <button id="len-plus" class="btn secondary mini" type="button" aria-label="Plus de secondes">+</button>
+        <span class="length-unit">secondes <small>(0,1 à 20)</small></span>
+      </div>
+
+      <div class="hints">
+        <button id="full-btn" class="btn hint-full" type="button" disabled>🔒 Opening entier</button>
+        <button id="letters-btn" class="btn hint-letters" type="button" disabled>🔒 Initiales</button>
+      </div>
+
+      <div id="letters" class="letters hidden" aria-live="polite"></div>
+      </div>
+    </section>
+
+    <!-- Réponse -->
+    <section class="card">
+      <form id="answer-form" autocomplete="off">
+        <div class="answer-row">
+          <div class="field grow">
+            <label for="anime-input">Anime</label>
+            <div class="autocomplete">
+              <input id="anime-input" type="text" placeholder="nom de l'anime" role="combobox"
+                     aria-autocomplete="list" aria-expanded="false" aria-controls="suggestions"
+                     spellcheck="false" autocapitalize="off" autocorrect="off">
+              <ul id="suggestions" class="suggestions hidden" role="listbox"></ul>
+            </div>
+          </div>
+
+          <div id="num-field" class="field num">
+            <label for="opening-input">N°</label>
+            <input id="opening-input" type="number" min="1" step="1" value="1" inputmode="numeric">
+          </div>
+        </div>
+
+        <p id="answer-msg" class="answer-msg"></p>
+        <div class="form-actions">
+          <button id="submit-btn" class="btn big" type="submit" disabled>Valider</button>
+          <button id="skip-btn" class="btn secondary" type="button" disabled>⏭ Plus de musique</button>
+          <button id="giveup-btn" class="btn secondary" type="button" disabled>Abandonner</button>
+        </div>
+        <p id="wait-msg" class="wait-msg hidden"></p>
+      </form>
+    </section>
+
+    <!-- Correction -->
+    <section id="result" class="card result hidden" aria-live="polite">
+      <div class="result-top">
+        <img id="res-cover" class="cover hidden" alt="" loading="lazy" referrerpolicy="no-referrer">
+        <div class="result-body">
+          <div id="verdict" class="verdict"></div>
+          <ul id="result-details" class="details"></ul>
+        </div>
+      </div>
+
+      <div class="result-actions">
+        <a id="res-mal" class="btn secondary hidden" target="_blank" rel="noopener noreferrer">Fiche MyAnimeList ↗</a>
+        <button id="list-btn" class="btn secondary listbtn hidden" type="button">＋ Ajouter à une liste</button>
+        <button id="res-video-btn" class="btn secondary hidden" type="button">▶ Voir l'opening</button>
+      </div>
+
+      <video id="res-video" class="res-video hidden" controls playsinline preload="none"></video>
+
+      <!-- Multijoueur : résultats de la manche -->
+      <div id="scoreboard" class="scoreboard hidden">
+        <h3 id="sb-title"></h3>
+        <ol id="sb-list"></ol>
+      </div>
+      <p id="mp-next-msg" class="mp-next-msg hidden"></p>
+
+      <button id="next-btn" class="btn big" type="button">Suivant ➜</button>
+    </section>
+
+  </main>
+
+  <footer class="foot">
+    <div class="hist-row">
+      <span class="foot-label">Dernières réponses</span>
+      <div id="history" class="history" aria-label="Historique des réponses"></div>
+      <span id="streak" class="streak"></span>
+    </div>
+    <p class="foot-credits">Musiques et vidéos : <a href="https://animethemes.moe" target="_blank" rel="noopener noreferrer">AnimeThemes</a> · Fiches : <a href="https://myanimelist.net" target="_blank" rel="noopener noreferrer">MyAnimeList</a></p>
+  </footer>
+
+  <script>try{var d=document.getElementById("settings");if(d&&window.matchMedia("(max-width:520px)").matches)d.open=false;}catch(e){}</script>
+  <script src="js/i18n-data.js?v=20261068"></script>
+  <script src="js/i18n.js?v=20261068"></script>
+  <script src="js/animes.js?v=20261068"></script>
+  <script src="js/genres.js?v=20261068"></script>
+  <script src="js/overrides.js?v=20261068"></script>
+  <script src="js/app.js?v=20261068"></script>
+  <script src="js/genre-ui.js?v=20261068"></script>
+  <script src="js/fx.js?v=20261068"></script>
+</body>
+</html>

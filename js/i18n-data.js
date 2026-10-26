@@ -2162,6 +2162,69 @@ window.I18N_ROWS = [
 "De",
 "De",
 "Von"
+],
+[
+"⚙ Réglages",
+"⚙ Settings",
+"⚙ Ajustes",
+"⚙ Configurações",
+"⚙ Einstellungen"
+],
+[
+"🎵 Devine l'opening",
+"🎵 Guess the opening",
+"🎵 Adivina el opening",
+"🎵 Adivinhe o opening",
+"🎵 Errate das Opening"
+],
+[
+"⏱ Extraits éclair",
+"⏱ Lightning clips",
+"⏱ Fragmentos relámpago",
+"⏱ Trechos relâmpago",
+"⏱ Blitz-Ausschnitte"
+],
+[
+"Extraits éclair",
+"Lightning clips",
+"Fragmentos relámpago",
+"Trechos relâmpago",
+"Blitz-Ausschnitte"
+],
+[
+"⏭ Plus de musique",
+"⏭ More music",
+"⏭ Más música",
+"⏭ Mais música",
+"⏭ Mehr Musik"
+],
+[
+"Raté ! Extrait suivant débloqué.",
+"Missed! Next clip unlocked.",
+"¡Fallaste! Siguiente fragmento desbloqueado.",
+"Errou! Próximo trecho desbloqueado.",
+"Daneben! Nächster Ausschnitt freigeschaltet."
+],
+[
+"Bon anime, mauvais numéro. Extrait suivant débloqué !",
+"Right anime, wrong number. Next clip unlocked!",
+"Anime correcto, número incorrecto. ¡Siguiente fragmento desbloqueado!",
+"Anime certo, número errado. Próximo trecho desbloqueado!",
+"Richtiger Anime, falsche Nummer. Nächster Ausschnitt freigeschaltet!"
+],
+[
+"Trouvé à",
+"Found at",
+"Acertado en",
+"Acertou em",
+"Gefunden bei"
+],
+[
+"Points",
+"Points",
+"Puntos",
+"Pontos",
+"Punkte"
 ]
 ];
 window.I18N_RULES = [
@@ -2612,6 +2675,20 @@ window.I18N_RULES = [
 "Desafío: $2/$3 pts · $4/$5 acertados",
 "Desafio: $2/$3 pts · $4/$5 acertos",
 "Challenge: $2/$3 Pkt. · $4/$5 gefunden"
+],
+[
+"^Score : (\\d+)$",
+"Score: $1",
+"Puntuación: $1",
+"Pontuação: $1",
+"Punktestand: $1"
+],
+[
+"^(\\d),(\\d) s$",
+"$1.$2 s",
+"$1,$2 s",
+"$1,$2 s",
+"$1,$2 s"
 ]
 ];
 window.I18N_HTML = {
@@ -2722,5 +2799,23 @@ window.I18N_HTML = {
 "<b>3 puntos</b> por respuesta correcta sin pistas, <b>2</b> con el opening completo, <b>1</b> con las iniciales.",
 "<b>3 pontos</b> por resposta certa sem dicas, <b>2</b> com o opening completo, <b>1</b> com as iniciais.",
 "<b>3 Punkte</b> pro richtiger Antwort ohne Hinweis, <b>2</b> mit dem ganzen Opening, <b>1</b> mit den Initialen."
+],
+"sp1": [
+"The opening <b>always starts from the beginning</b>. You first hear <b>0.1 s</b>; each mistake (or the <b>More music</b> button) unlocks a longer clip: <b>0.2 s → 0.5 s → 2 s → 5 s</b>.",
+"El opening <b>siempre empieza desde el principio</b>. Primero oyes <b>0,1 s</b>; cada error (o el botón <b>Más música</b>) desbloquea un fragmento más largo: <b>0,2 s → 0,5 s → 2 s → 5 s</b>.",
+"O opening <b>sempre começa do início</b>. Você ouve primeiro <b>0,1 s</b>; cada erro (ou o botão <b>Mais música</b>) libera um trecho maior: <b>0,2 s → 0,5 s → 2 s → 5 s</b>.",
+"Das Opening beginnt <b>immer am Anfang</b>. Zuerst hörst du <b>0,1 s</b>; jeder Fehler (oder die Taste <b>Mehr Musik</b>) schaltet einen längeren Ausschnitt frei: <b>0,2 s → 0,5 s → 2 s → 5 s</b>."
+],
+"sp2": [
+"Find <b>the anime</b> (and the <b>number</b> if that option is ticked) as early as possible: <b>5 points</b> at 0.1 s, <b>4</b> at 0.2 s, <b>3</b> at 0.5 s, <b>2</b> at 2 s, <b>1</b> at 5 s. After the last clip, a mistake or giving up earns 0.",
+"Encuentra <b>el anime</b> (y el <b>número</b> si la opción está marcada) lo antes posible: <b>5 puntos</b> a 0,1 s, <b>4</b> a 0,2 s, <b>3</b> a 0,5 s, <b>2</b> a 2 s, <b>1</b> a 5 s. Tras el último fragmento, un error o rendirse da 0.",
+"Encontre <b>o anime</b> (e o <b>número</b> se a opção estiver marcada) o mais cedo possível: <b>5 pontos</b> em 0,1 s, <b>4</b> em 0,2 s, <b>3</b> em 0,5 s, <b>2</b> em 2 s, <b>1</b> em 5 s. Depois do último trecho, um erro ou desistir vale 0.",
+"Finde <b>den Anime</b> (und die <b>Nummer</b>, wenn die Option angehakt ist) so früh wie möglich: <b>5 Punkte</b> bei 0,1 s, <b>4</b> bei 0,2 s, <b>3</b> bei 0,5 s, <b>2</b> bei 2 s, <b>1</b> bei 5 s. Nach dem letzten Ausschnitt gibt ein Fehler oder Aufgeben 0."
+],
+"sp3": [
+"The settings (difficulties, genres, years, number, automatic video) are the same as in the main game and are shared with it.",
+"Los ajustes (dificultades, géneros, años, número, vídeo automático) son los mismos que en el juego principal y se comparten con él.",
+"As configurações (dificuldades, gêneros, anos, número, vídeo automático) são as mesmas do jogo principal e são compartilhadas com ele.",
+"Die Einstellungen (Schwierigkeitsgrade, Genres, Jahre, Nummer, automatisches Video) sind dieselben wie im Hauptspiel und werden mit ihm geteilt."
 ]
 };

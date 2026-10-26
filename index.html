@@ -9,7 +9,7 @@
   <link rel="icon" href="favicon-32.png" sizes="32x32" type="image/png">
   <link rel="apple-touch-icon" href="apple-touch-icon.png">
   <link rel="manifest" href="site.webmanifest">
-  <link rel="stylesheet" href="css/style.css?v=20261066">
+  <link rel="stylesheet" href="css/style.css?v=20261068">
 </head>
 <body>
 
@@ -24,13 +24,6 @@
     </div>
 
     <div class="top-right">
-      <!-- Difficultés : on peut en activer plusieurs en même temps -->
-      <div class="mode" role="group" aria-label="Difficultés">
-        <button id="lvl-easy" class="seg active" type="button" aria-pressed="true">Facile</button>
-        <button id="lvl-medium" class="seg active" type="button" aria-pressed="true">Moyen</button>
-        <button id="lvl-hard" class="seg active" type="button" aria-pressed="true">Difficile</button>
-      </div>
-
       <!-- Langue -->
       <select id="lang-select" class="lang-select" aria-label="Langue"></select>
 
@@ -100,14 +93,24 @@
     </div>
   </header>
 
-  <!-- Bibliothèque / Listes / Multijoueur / Compte -->
+  <!-- Les 3 jeux -->
+  <nav class="modes" aria-label="Jeux">
+    <a class="mode-tab active" href="index.html" aria-current="page">🎵 Devine l'opening</a>
+    <a class="mode-tab" href="speed.html">⏱ Extraits éclair</a>
+    <a class="mode-tab" href="tournament.html">🏆 Tournoi</a>
+  </nav>
+
+  <!-- Menu : jouer à plusieurs | mes affaires -->
   <nav class="nav" aria-label="Menu">
-    <button id="nav-library" class="btn secondary" type="button">Bibliothèque</button>
-    <button id="nav-lists" class="btn secondary" type="button">Listes</button>
-    <button id="nav-multi" class="btn secondary" type="button">Multijoueur</button>
-    <button id="nav-challenge" class="btn secondary" type="button">⚔ Défis</button>
-    <button id="nav-account" class="btn secondary" type="button">👤 Compte</button>
-    <a id="nav-tournament" class="btn secondary" href="tournament.html">🏆 Tournoi</a>
+    <div class="nav-group">
+      <button id="nav-multi" class="btn secondary" type="button">Multijoueur</button>
+      <button id="nav-challenge" class="btn secondary" type="button">⚔ Défis</button>
+    </div>
+    <div class="nav-group">
+      <button id="nav-library" class="btn secondary" type="button">Bibliothèque</button>
+      <button id="nav-lists" class="btn secondary" type="button">Listes</button>
+      <button id="nav-account" class="btn secondary" type="button">👤 Compte</button>
+    </div>
   </nav>
 
   <main>
@@ -121,7 +124,19 @@
       </span>
     </div>
 
-    <!-- Genres : ne proposer que les openings d'animes de certains genres -->
+    <!-- Réglages : tout au même endroit -->
+    <details id="settings" class="card settings" open>
+      <summary>⚙ Réglages</summary>
+      <div class="set-body">
+        <div class="set-row">
+          <span class="set-label">Difficultés</span>
+          <!-- Difficultés : on peut en activer plusieurs en même temps -->
+          <div class="mode" role="group" aria-label="Difficultés">
+            <button id="lvl-easy" class="seg active" type="button" aria-pressed="true">Facile</button>
+            <button id="lvl-medium" class="seg active" type="button" aria-pressed="true">Moyen</button>
+            <button id="lvl-hard" class="seg active" type="button" aria-pressed="true">Difficile</button>
+          </div>
+        </div>
     <div class="filter-row">
     <details id="genre-box" class="genre-box">
       <summary>🎭 Genres : <span id="genre-label">tous</span></summary>
@@ -145,6 +160,12 @@
       </div>
     </details>
     </div>
+        <div class="options">
+          <label class="opt"><input id="opt-number" type="checkbox" checked> Deviner le numéro d'opening</label>
+          <label class="opt"><input id="opt-autovideo" type="checkbox" checked> Vidéo automatique</label>
+        </div>
+      </div>
+    </details>
 
     <!-- Lecteur audio -->
     <section id="player-card" class="card">
@@ -193,12 +214,6 @@
     <!-- Réponse -->
     <section class="card">
       <form id="answer-form" autocomplete="off">
-        <!-- Options -->
-        <div class="options">
-          <label class="opt"><input id="opt-number" type="checkbox" checked> Deviner le numéro d'opening</label>
-          <label class="opt"><input id="opt-autovideo" type="checkbox" checked> Vidéo automatique</label>
-        </div>
-
         <div class="answer-row">
           <div class="field grow">
             <label for="anime-input">Anime</label>
@@ -513,17 +528,18 @@
     </div>
   </div>
 
-  <script src="js/i18n-data.js?v=20261066"></script>
-  <script src="js/i18n.js?v=20261066"></script>
-  <script src="js/animes.js?v=20261066"></script>
-  <script src="js/genres.js?v=20261066"></script>
-  <script src="js/overrides.js?v=20261066"></script>
-  <script src="js/app.js?v=20261066"></script>
-  <script src="js/lists.js?v=20261066"></script>
-  <script src="js/library.js?v=20261066"></script>
-  <script src="js/genre-ui.js?v=20261066"></script>
-  <script src="js/challenge.js?v=20261066"></script>
-  <script src="js/multi.js?v=20261066"></script>
-  <script src="js/fx.js?v=20261066"></script>
+  <script>try{var d=document.getElementById("settings");if(d&&window.matchMedia("(max-width:520px)").matches)d.open=false;}catch(e){}</script>
+  <script src="js/i18n-data.js?v=20261068"></script>
+  <script src="js/i18n.js?v=20261068"></script>
+  <script src="js/animes.js?v=20261068"></script>
+  <script src="js/genres.js?v=20261068"></script>
+  <script src="js/overrides.js?v=20261068"></script>
+  <script src="js/app.js?v=20261068"></script>
+  <script src="js/lists.js?v=20261068"></script>
+  <script src="js/library.js?v=20261068"></script>
+  <script src="js/genre-ui.js?v=20261068"></script>
+  <script src="js/challenge.js?v=20261068"></script>
+  <script src="js/multi.js?v=20261068"></script>
+  <script src="js/fx.js?v=20261068"></script>
 </body>
 </html>

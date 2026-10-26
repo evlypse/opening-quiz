@@ -90,6 +90,17 @@
   const streakEl = $('streak');
   const levelBtns = { easy: $('lvl-easy'), medium: $('lvl-medium'), hard: $('lvl-hard') };
 
+  // Mode « extraits éclair » (speed.html) : on part toujours du début de l'opening, et chaque erreur débloque un extrait plus long
+  const SPEED = document.body.dataset.mode === 'speed';
+  const STEPS = [0.1, 0.2, 0.5, 2, 5];          // durées successives de l'extrait (secondes)
+  const STEP_POINTS = [5, 4, 3, 2, 1];          // points gagnés selon l'extrait où on trouve
+  const stagesEl = $('stages');
+  const skipBtn = $('skip-btn');
+  const scoreEl = $('speed-score');
+  let stage = 0;
+  let speedScore = 0;
+  const fmtStep = (v) => String(v).replace('.', ',') + ' s';
+
   /* ------------------------------------------------------------------
    * Outils : textes, noms, stockage
    * ------------------------------------------------------------------ */
@@ -284,7 +295,7 @@
     return Math.min(MAX_LENGTH, Math.max(MIN_LENGTH, Math.round(v * 10) / 10));
   };
   const savedLength = () => clampLength(parseFloat(store.get('opening-quiz-length', String(DEFAULT_LENGTH))));
-  let snippetSeconds = savedLength();
+  let snippetSeconds = SPEED ? STEPS[0] : savedLength();
 
   function loadLevels() {
     const raw = store.get('opening-quiz-levels', LEVELS.join(','));
@@ -1324,7 +1335,7 @@
 
         // Point de départ aléatoire, n'importe où dans l'opening (avec la place pour tout l'extrait)
         const maxStart = Number.isFinite(d) ? Math.max(0, d - snippetSeconds - 0.5) : 30;
-        snippetStart = typeof forcedStart === 'number' ? Math.min(Math.max(0, forcedStart), maxStart) : Math.random() * maxStart;
+        snippetStart = SPEED ? 0 : typeof forcedStart === 'number' ? Math.min(Math.max(0, forcedStart), maxStart) : Math.random() * maxStart;
         finish(true);
       };
       const onError = () => { lastFail = 'audio ' + (audio.error ? 'code ' + audio.error.code : 'illisible'); finish(false); };
@@ -1386,7 +1397,33 @@
     resVideoBtn.textContent = '▶ Voir l\'opening';
   }
 
+  function renderStages() {
+    if (!SPEED || !stagesEl) return;
+    stagesEl.textContent = '';
+    STEPS.forEach((v, i) => {
+      const li = document.createElement('li');
+      li.textContent = fmtStep(v);
+      li.className = 'stage' + (i < stage ? ' past' : '') + (i === stage ? ' current' : '') + (i > stage ? ' locked' : '');
+      stagesEl.appendChild(li);
+    });
+    if (skipBtn) skipBtn.disabled = !round || answered || stage >= STEPS.length - 1;
+  }
+
+  // Débloque l'extrait suivant (après une erreur ou en le demandant) et le joue tout de suite
+  function unlockNext() {
+    if (!SPEED || !round || answered || stage >= STEPS.length - 1) return;
+    stage++;
+    snippetSeconds = STEPS[stage];
+    audio.pause();
+    audio.currentTime = 0;
+    renderStages();
+    refreshSeek();
+    updatePlayBtn();
+    audio.play().catch(() => { /* lecture refusée : le bouton Écouter reste dispo */ });
+  }
+
   function resetUI() {
+    if (SPEED) { stage = 0; snippetSeconds = STEPS[0]; }
     audio.pause();
     cancelAnimationFrame(rafId);
     round = null;
@@ -1431,6 +1468,7 @@
     nextBtn.classList.remove('hidden');
     resetVideo();
     updatePlayBtn();
+    renderStages();
   }
 
   // Cherche un opening jouable (audio chargé). null = annulé, undefined = échec.
@@ -1491,6 +1529,7 @@
     submitBtn.disabled = false;
     giveUpBtn.disabled = false;
     updatePlayBtn();
+    renderStages();
     // Sur téléphone, on ne met pas le curseur dans le champ : cela ouvrirait le clavier tout seul
     if (!coarsePointer) animeInput.focus({ preventScroll: true });
 
@@ -1875,6 +1914,10 @@
     if (song) addDetail('Musique', song);
     const date = fmtDate(round.season, round.year);
     if (date) addDetail('Sortie', date);
+    if (SPEED) {
+      if (lastVerdict.cls === 'correct') addDetail('Trouvé à', fmtStep(STEPS[lastVerdict.stage]));
+      addDetail('Points', String(lastVerdict.points || 0));
+    }
     const diff = addDetail('Difficulté', '');
     const pill = document.createElement('span');
     pill.className = 'pill ' + round.tier;
@@ -1929,6 +1972,13 @@
     playerCard.classList.add('answered');
     const hints = lettersShown ? 2 : (usedFull ? 1 : 0);      // 0 aucun indice, 1 opening entier, 2 initiales
     lastVerdict = { ...judge(guess, num, gaveUp), hints };
+    if (SPEED) {
+      lastVerdict.stage = stage;
+      lastVerdict.points = lastVerdict.cls === 'correct' ? STEP_POINTS[stage] : 0;
+      speedScore += lastVerdict.points;
+      if (scoreEl) scoreEl.textContent = 'Score : ' + speedScore;
+      renderStages();
+    }
 
     if (mp.active && mp.revealed) {
       // La révélation est déjà passée (chargement lent de cet opening) : on affiche le résultat tout de suite
@@ -1973,8 +2023,21 @@
       }
     }
 
+    if (SPEED) {
+      const v = judge(guess, num, false);
+      if (v.cls !== 'correct' && stage < STEPS.length - 1) {
+        answerMsg.textContent = v.cls === 'presque' ? 'Bon anime, mauvais numéro. Extrait suivant débloqué !' : 'Raté ! Extrait suivant débloqué.';
+        animeInput.value = '';
+        selectedAnime = null;
+        closeSuggestions();
+        unlockNext();
+        return;
+      }
+    }
     finishRound(guess, num, false);
   });
+
+  if (skipBtn) skipBtn.addEventListener('click', () => { answerMsg.textContent = ''; unlockNext(); });
 
   giveUpBtn.addEventListener('click', () => {
     if (!round || answered) return;

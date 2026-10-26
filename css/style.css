@@ -980,3 +980,87 @@ select:focus { outline: none; border-color: var(--v500); box-shadow: 0 0 0 3px v
 .tn-info { min-height: 3.2em; font-size: 0.92rem; line-height: 1.35; }
 .tn-info .tn-it { color: var(--ink); }
 .tn-info b { font-weight: 800; }
+
+/* ======================================================================
+   Les 3 jeux (onglets), menu regroupé, réglages
+   ====================================================================== */
+.modes { display: flex; gap: 8px; max-width: 800px; margin: 0 auto; padding: 0 16px 10px; }
+.mode-tab {
+  flex: 1;
+  text-align: center;
+  text-decoration: none;
+  font-weight: 700;
+  font-size: 0.9rem;
+  padding: 10px 8px;
+  border: 1px solid var(--g300);
+  border-radius: var(--r-s);
+  background: var(--white);
+  color: var(--g700);
+  touch-action: manipulation;
+}
+.mode-tab:hover { background: var(--g100); }
+.mode-tab.active { background: var(--v600); border-color: var(--v600); color: var(--white); cursor: default; }
+.mode-tab:focus-visible { outline: 2px solid var(--v500); outline-offset: 2px; }
+
+.nav { justify-content: space-between; row-gap: 8px; }
+.nav-group { display: flex; flex-wrap: wrap; gap: 8px; }
+.nav .btn { padding: 6px 12px; font-size: 0.85rem; }
+
+.settings > summary { cursor: pointer; font-weight: 800; color: var(--ink); list-style: none; display: flex; align-items: center; justify-content: space-between; }
+.settings > summary::-webkit-details-marker { display: none; }
+.settings > summary::after { content: "▾"; color: var(--g500); transition: transform 0.2s; }
+.settings[open] > summary::after { transform: rotate(180deg); }
+.settings > summary:focus-visible { outline: 2px solid var(--v500); outline-offset: 4px; border-radius: 4px; }
+.set-body { display: flex; flex-direction: column; gap: 12px; margin-top: 14px; }
+.set-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.set-label { font-size: 0.82rem; font-weight: 700; color: var(--g700); }
+.settings .options { margin: 0; }
+
+@media (max-width: 520px) {
+  .modes { padding: 0 10px 8px; gap: 6px; }
+  .mode-tab { font-size: 0.76rem; padding: 8px 4px; line-height: 1.25; display: flex; align-items: center; justify-content: center; }
+  .nav { gap: 6px; }
+  .nav-group { flex: 1 1 100%; gap: 6px; }
+  .nav-group .btn { flex: 1; }
+  .set-body { gap: 10px; margin-top: 10px; }
+}
+@media (min-width: 900px) { .modes { max-width: 960px; } }
+@media (min-width: 1500px) { .modes { max-width: 1040px; } }
+
+/* ---------- Page « Extraits éclair » ---------- */
+body[data-mode="speed"] .seek-row,
+body[data-mode="speed"] .length-row,
+body[data-mode="speed"] .hints,
+body[data-mode="speed"] .letters,
+body[data-mode="speed"] #list-btn,
+.speed-hidden { display: none !important; }
+body[data-mode="speed"] .answered .seek-row { display: flex !important; }
+.speed-score { margin: 10px 0 0; text-align: right; font-size: 0.85rem; font-weight: 800; color: var(--v700); }
+.stages { list-style: none; display: flex; gap: 6px; padding: 0; margin: 8px 0 0; }
+.stage {
+  flex: 1;
+  text-align: center;
+  padding: 9px 2px;
+  border: 1px solid var(--g300);
+  border-radius: var(--r-s);
+  background: var(--g100);
+  color: var(--g500);
+  font-weight: 700;
+  font-size: 0.85rem;
+}
+.stage.past { background: var(--v50); border-color: var(--v200); color: var(--v700); }
+.stage.current { background: var(--v600); border-color: var(--v600); color: var(--white); }
+.stage.locked::before { content: "🔒 "; font-size: 0.7em; }
+.answered .stages { opacity: 0.6; }
+@media (max-width: 520px) { .stage { font-size: 0.78rem; padding: 8px 0; } }
+
+/* Téléphone : titre et langue sur la même ligne ; boutons de la page éclair mieux rangés */
+@media (max-width: 520px) {
+  .top { flex-wrap: nowrap; align-items: center; }
+  .brand { min-width: 0; }
+  .top-right { width: auto; flex-shrink: 0; gap: 8px; }
+  .lang-select { max-width: 112px; }
+  body[data-mode="speed"] .form-actions { flex-wrap: wrap; }
+  body[data-mode="speed"] .form-actions .btn.big { flex: 1 1 100%; }
+  body[data-mode="speed"] .form-actions .btn:not(.big) { flex: 1; }
+}
