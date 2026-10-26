@@ -311,10 +311,7 @@
     order = shuffle(usablePool());
     cursor = 0;
     let fails = 0, got = 0, inflight = 0;
-    const setProgress = () => {
-      $('tn-load-text').textContent = 'Préparation des openings… ' + got + ' / ' + SIZE;
-      $('tn-load-bar').style.width = Math.round(got / SIZE * 100) + '%';
-    };
+    const setProgress = () => {};            // l'affichage (un seul compteur) est géré par prepareAll
     setProgress();
     const worker = async () => {
       while (id === runId) {
@@ -609,13 +606,11 @@
     current = slots; next = []; pairIdx = 0; history = [];
     show('tn-load');
     startLoader(id);
-    (async () => {                                   // on attend que les 16 soient trouvés (données seulement)
-      while (id === runId && !loaderDone) await sleep(200);
-      if (id !== runId) return;
-      if (slots.filter(Boolean).length < SIZE) { show('tn-start'); $('tn-start-msg').textContent = failText(); return; }
-      // préparation : les 4 premiers openings en entier, puis le début (un quart) des 12 autres ; le reste arrive pendant que tu joues
+    (async () => {
+      // un seul écran : chaque opening est téléchargé dès qu'il est trouvé (4 premiers en entier, début des 12 autres)
       if (!(await prepareAll(id, slots, true, 0, SIZE, false, (i) => (i < PREP ? 1 : HEAD)))) return;
       if (id !== runId) return;
+      if (slots.filter(Boolean).length < SIZE) { show('tn-start'); $('tn-start-msg').textContent = failText(); return; }
       prepareAll(id, slots, true, 0, SIZE, true);         // le reste des vidéos, dans l'ordre des duels, sans écran
       showPair();
     })();
