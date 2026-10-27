@@ -1027,7 +1027,7 @@ select:focus { outline: none; border-color: var(--v500); box-shadow: 0 0 0 3px v
 @media (min-width: 900px) { .modes { max-width: 960px; } }
 @media (min-width: 1500px) { .modes { max-width: 1040px; } }
 
-/* ---------- Page « Extraits éclair » ---------- */
+/* ---------- Page « Progressif » ---------- */
 body[data-mode="speed"] .seek-row,
 body[data-mode="speed"] .length-row,
 body[data-mode="speed"] .hints,
@@ -1060,7 +1060,4 @@ body[data-mode="speed"] .answered .seek-row { display: flex !important; }
   .brand { min-width: 0; }
   .top-right { width: auto; flex-shrink: 0; gap: 8px; }
   .lang-select { max-width: 112px; }
-  body[data-mode="speed"] .form-actions { flex-wrap: wrap; }
-  body[data-mode="speed"] .form-actions .btn.big { flex: 1 1 100%; }
-  body[data-mode="speed"] .form-actions .btn:not(.big) { flex: 1; }
 }

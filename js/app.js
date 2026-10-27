@@ -95,7 +95,6 @@
   const STEPS = [0.1, 0.2, 0.5, 2, 5];          // durées successives de l'extrait (secondes)
   const STEP_POINTS = [5, 4, 3, 2, 1];          // points gagnés selon l'extrait où on trouve
   const stagesEl = $('stages');
-  const skipBtn = $('skip-btn');
   const scoreEl = $('speed-score');
   let stage = 0;
   let speedScore = 0;
@@ -1406,7 +1405,6 @@
       li.className = 'stage' + (i < stage ? ' past' : '') + (i === stage ? ' current' : '') + (i > stage ? ' locked' : '');
       stagesEl.appendChild(li);
     });
-    if (skipBtn) skipBtn.disabled = !round || answered || stage >= STEPS.length - 1;
   }
 
   // Débloque l'extrait suivant (après une erreur ou en le demandant) et le joue tout de suite
@@ -2036,8 +2034,6 @@
     }
     finishRound(guess, num, false);
   });
-
-  if (skipBtn) skipBtn.addEventListener('click', () => { answerMsg.textContent = ''; unlockNext(); });
 
   giveUpBtn.addEventListener('click', () => {
     if (!round || answered) return;

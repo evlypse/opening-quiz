@@ -4,12 +4,12 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#f4f4f8">
-  <title>Extraits éclair</title>
+  <title>Progressif</title>
   <link rel="icon" href="favicon.svg" type="image/svg+xml">
   <link rel="icon" href="favicon-32.png" sizes="32x32" type="image/png">
   <link rel="apple-touch-icon" href="apple-touch-icon.png">
   <link rel="manifest" href="site.webmanifest">
-  <link rel="stylesheet" href="css/style.css?v=20261068">
+  <link rel="stylesheet" href="css/style.css?v=20261069">
 </head>
 <body data-mode="speed">
 
@@ -20,7 +20,7 @@
 
   <header class="top">
     <div class="brand">
-      <h1>Extraits éclair</h1>
+      <h1>Progressif</h1>
     </div>
 
     <div class="top-right">
@@ -33,7 +33,7 @@
         <div id="help-box" class="help-box" role="tooltip">
           <h3>Jouer</h3>
           <ul>
-            <li data-i18n-html="sp1">L'opening démarre <b>toujours au début</b>. Tu entends d'abord <b>0,1 s</b> ; chaque erreur (ou le bouton <b>Plus de musique</b>) débloque un extrait plus long : <b>0,2 s → 0,5 s → 2 s → 5 s</b>.</li>
+            <li data-i18n-html="sp1">L'opening démarre <b>toujours au début</b>. Tu entends d'abord <b>0,1 s</b> ; chaque mauvaise réponse débloque automatiquement un extrait plus long : <b>0,2 s → 0,5 s → 2 s → 5 s</b>.</li>
             <li data-i18n-html="sp2">Trouve <b>l'anime</b> (et le <b>numéro</b> si l'option est cochée) le plus tôt possible : <b>5 points</b> à 0,1 s, <b>4</b> à 0,2 s, <b>3</b> à 0,5 s, <b>2</b> à 2 s, <b>1</b> à 5 s. Après le dernier extrait, une erreur ou un abandon rapporte 0.</li>
             <li data-i18n-html="sp3">Les réglages (difficultés, genres, années, numéro, vidéo automatique) sont les mêmes que dans le jeu principal et se partagent avec lui.</li>
           </ul>
@@ -49,7 +49,7 @@
   <!-- Les 3 jeux -->
   <nav class="modes" aria-label="Jeux">
     <a class="mode-tab" href="index.html">🎵 Devine l'opening</a>
-    <a class="mode-tab active" href="speed.html" aria-current="page">⏱ Extraits éclair</a>
+    <a class="mode-tab active" href="speed.html" aria-current="page">⏱ Progressif</a>
     <a class="mode-tab" href="tournament.html">🏆 Tournoi</a>
   </nav>
 
@@ -172,7 +172,6 @@
         <p id="answer-msg" class="answer-msg"></p>
         <div class="form-actions">
           <button id="submit-btn" class="btn big" type="submit" disabled>Valider</button>
-          <button id="skip-btn" class="btn secondary" type="button" disabled>⏭ Plus de musique</button>
           <button id="giveup-btn" class="btn secondary" type="button" disabled>Abandonner</button>
         </div>
         <p id="wait-msg" class="wait-msg hidden"></p>
@@ -219,13 +218,13 @@
   </footer>
 
   <script>try{var d=document.getElementById("settings");if(d&&window.matchMedia("(max-width:520px)").matches)d.open=false;}catch(e){}</script>
-  <script src="js/i18n-data.js?v=20261068"></script>
-  <script src="js/i18n.js?v=20261068"></script>
-  <script src="js/animes.js?v=20261068"></script>
-  <script src="js/genres.js?v=20261068"></script>
-  <script src="js/overrides.js?v=20261068"></script>
-  <script src="js/app.js?v=20261068"></script>
-  <script src="js/genre-ui.js?v=20261068"></script>
-  <script src="js/fx.js?v=20261068"></script>
+  <script src="js/i18n-data.js?v=20261069"></script>
+  <script src="js/i18n.js?v=20261069"></script>
+  <script src="js/animes.js?v=20261069"></script>
+  <script src="js/genres.js?v=20261069"></script>
+  <script src="js/overrides.js?v=20261069"></script>
+  <script src="js/app.js?v=20261069"></script>
+  <script src="js/genre-ui.js?v=20261069"></script>
+  <script src="js/fx.js?v=20261069"></script>
 </body>
 </html>
