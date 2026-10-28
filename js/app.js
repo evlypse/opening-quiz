@@ -1318,7 +1318,7 @@
 
   // Mode Progressif : certains openings commencent par un silence. On repère l'instant du premier son
   // (en analysant le fichier déjà téléchargé) pour que l'extrait démarre pile à ce moment-là.
-  const SOUND_LEVEL = 0.02;        // volume (0 à 1) à partir duquel on considère que le son a commencé
+  const SOUND_LEVEL = 0.1;        // volume (0 à 1) à partir duquel on considère que le son a commencé
   const SOUND_BACKOFF = 0.03;      // on démarre un tout petit peu avant, pour ne pas couper l'attaque (secondes)
   const SOUND_MAX_LEAD = 20;       // au-delà, on ignore (silence trop long = probablement une erreur de détection)
   const leadCache = new Map();     // adresse -> secondes de silence au début
