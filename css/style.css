@@ -1061,3 +1061,12 @@ body[data-mode="speed"] .answered .seek-row { display: flex !important; }
   .top-right { width: auto; flex-shrink: 0; gap: 8px; }
   .lang-select { max-width: 112px; }
 }
+
+/* Défis sur téléphone : le nom de l'anime passe sur toute la largeur, les boutons en dessous  */
+@media (max-width: 520px) {
+  .ch-top { flex-wrap: wrap; row-gap: 6px; }
+  .ch-top .lib-song { flex: 1 1 calc(100% - 44px); min-width: 0; }
+  .ch-top .lib-song b,
+  .ch-top .lib-song small { white-space: normal; overflow: visible; text-overflow: clip; overflow-wrap: anywhere; }
+  .ch-top .lib-song + .btn { margin-left: 42px; }
+}

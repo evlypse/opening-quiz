@@ -285,18 +285,6 @@
     play.addEventListener('click', () => testEntry(play, entry));
     top.appendChild(play);
 
-    const dice = el('button', 'btn secondary mini', '🎲');
-    dice.type = 'button';
-    dice.title = 'Nouveau point de départ au hasard';
-    dice.addEventListener('click', async () => {
-      dice.textContent = '…';
-      try {
-        const m = await enqueue(() => ensureMedia(entry));
-        if (m.dur) { randomStart(entry, m.dur); renderBuilder(); } else { dice.textContent = '🎲'; }
-      } catch (err) { dice.textContent = '✕'; }
-    });
-    top.appendChild(dice);
-
     const up = el('button', 'btn secondary mini', '↑');
     up.type = 'button';
     up.title = 'Monter';
