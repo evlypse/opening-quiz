@@ -90,7 +90,7 @@
   const streakEl = $('streak');
   const levelBtns = { easy: $('lvl-easy'), medium: $('lvl-medium'), hard: $('lvl-hard') };
 
-  // Mode « extraits éclair » (speed.html) : on part toujours du début de l'opening, et chaque erreur débloque un extrait plus long
+  // Mode « extraits éclair » (speed.html) : on part toujours du début de l'opening (du premier son, s'il y a du silence), et chaque erreur débloque un extrait plus long
   const SPEED = document.body.dataset.mode === 'speed';
   const STEPS = [0.1, 0.2, 0.5, 2, 5];          // durées successives de l'extrait (secondes)
   const STEP_POINTS = [5, 4, 3, 2, 1];          // points gagnés selon l'extrait où on trouve
@@ -1291,7 +1291,7 @@
   function fetchAudioBlob(url) {
     const known = audioBlobs.get(url);
     if (known) return known.promise;
-    const rec = { blobUrl: '', promise: null };
+    const rec = { blobUrl: '', blob: null, promise: null };
     rec.promise = (async () => {
       const ctl = new AbortController();
       const timer = setTimeout(() => ctl.abort(), 25000);
@@ -1299,6 +1299,7 @@
         const res = await fetch(url, { signal: ctl.signal });
         if (!res.ok) throw new Error('HTTP ' + res.status);
         const blob = await res.blob();
+        rec.blob = blob;
         rec.blobUrl = URL.createObjectURL(blob);
         return rec.blobUrl;
       } catch (e) {
@@ -1315,8 +1316,50 @@
     return rec.promise;
   }
 
+  // Mode Progressif : certains openings commencent par un silence. On repère l'instant du premier son
+  // (en analysant le fichier déjà téléchargé) pour que l'extrait démarre pile à ce moment-là.
+  const SOUND_LEVEL = 0.02;        // volume (0 à 1) à partir duquel on considère que le son a commencé
+  const SOUND_BACKOFF = 0.03;      // on démarre un tout petit peu avant, pour ne pas couper l'attaque (secondes)
+  const SOUND_MAX_LEAD = 20;       // au-delà, on ignore (silence trop long = probablement une erreur de détection)
+  const leadCache = new Map();     // adresse -> secondes de silence au début
+  function audioLead(url) {
+    if (leadCache.has(url)) return leadCache.get(url);
+    const p = (async () => {
+      try {
+        const rec = audioBlobs.get(url);
+        if (!rec) return 0;
+        await rec.promise;
+        if (!rec.blob) return 0;
+        const Ctx = window.OfflineAudioContext || window.webkitOfflineAudioContext;
+        if (!Ctx) return 0;
+        const ctx = new Ctx(1, 1, 22050);
+        const buf = await rec.blob.arrayBuffer();
+        const data = await new Promise((resolve, reject) => {
+          const r = ctx.decodeAudioData(buf, resolve, reject);   // forme avec rappels (anciens Safari)
+          if (r && typeof r.then === 'function') r.then(resolve, reject);
+        });
+        const rate = data.sampleRate;
+        const limit = Math.min(data.length, Math.ceil(SOUND_MAX_LEAD * rate));
+        const chans = [];
+        for (let c = 0; c < data.numberOfChannels; c++) chans.push(data.getChannelData(c));
+        for (let i = 0; i < limit; i++) {
+          for (let c = 0; c < chans.length; c++) {
+            const v = chans[c][i];
+            if (v > SOUND_LEVEL || v < -SOUND_LEVEL) {
+              return Math.max(0, i / rate - SOUND_BACKOFF);
+            }
+          }
+        }
+        return 0;
+      } catch (e) { return 0; }
+    })();
+    leadCache.set(url, p);
+    return p;
+  }
+
   async function prepareAudio(url, forcedStart) {
     const local = await Promise.race([fetchAudioBlob(url), sleep(10000).then(() => '')]);
+    const lead = SPEED && local ? await Promise.race([audioLead(url), sleep(6000).then(() => 0)]) : 0;
     return new Promise((resolve) => {
       let finished = false;
       const finish = (ok) => {
@@ -1334,7 +1377,7 @@
 
         // Point de départ aléatoire, n'importe où dans l'opening (avec la place pour tout l'extrait)
         const maxStart = Number.isFinite(d) ? Math.max(0, d - snippetSeconds - 0.5) : 30;
-        snippetStart = SPEED ? 0 : typeof forcedStart === 'number' ? Math.min(Math.max(0, forcedStart), maxStart) : Math.random() * maxStart;
+        snippetStart = SPEED ? Math.min(lead, Math.max(0, (Number.isFinite(d) ? d : 30) - STEPS[STEPS.length - 1] - 0.5)) : typeof forcedStart === 'number' ? Math.min(Math.max(0, forcedStart), maxStart) : Math.random() * maxStart;
         finish(true);
       };
       const onError = () => { lastFail = 'audio ' + (audio.error ? 'code ' + audio.error.code : 'illisible'); finish(false); };
@@ -1413,7 +1456,7 @@
     stage++;
     snippetSeconds = STEPS[stage];
     audio.pause();
-    audio.currentTime = 0;
+    audio.currentTime = snippetStart;
     renderStages();
     refreshSeek();
     updatePlayBtn();

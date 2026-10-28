@@ -2794,10 +2794,10 @@ window.I18N_HTML = {
 "<b>3 Punkte</b> pro richtiger Antwort ohne Hinweis, <b>2</b> mit dem ganzen Opening, <b>1</b> mit den Initialen."
 ],
 "sp1": [
-"The opening <b>always starts from the beginning</b>. You first hear <b>0.1 s</b>; each wrong answer automatically unlocks a longer clip: <b>0.2 s → 0.5 s → 2 s → 5 s</b>.",
-"El opening <b>siempre empieza desde el principio</b>. Primero oyes <b>0,1 s</b>; cada respuesta incorrecta desbloquea automáticamente un fragmento más largo: <b>0,2 s → 0,5 s → 2 s → 5 s</b>.",
-"O opening <b>sempre começa do início</b>. Você ouve primeiro <b>0,1 s</b>; cada resposta errada libera automaticamente um trecho maior: <b>0,2 s → 0,5 s → 2 s → 5 s</b>.",
-"Das Opening beginnt <b>immer am Anfang</b>. Zuerst hörst du <b>0,1 s</b>; jede falsche Antwort schaltet automatisch einen längeren Ausschnitt frei: <b>0,2 s → 0,5 s → 2 s → 5 s</b>."
+"The opening <b>always starts at the first sound</b> (any silence at the beginning is skipped). You first hear <b>0.1 s</b>; each wrong answer automatically unlocks a longer clip: <b>0.2 s → 0.5 s → 2 s → 5 s</b>.",
+"El opening <b>siempre empieza en el primer sonido</b> (se salta el silencio inicial, si lo hay). Primero oyes <b>0,1 s</b>; cada respuesta incorrecta desbloquea automáticamente un fragmento más largo: <b>0,2 s → 0,5 s → 2 s → 5 s</b>.",
+"O opening <b>sempre começa no primeiro som</b> (o silêncio inicial, se houver, é pulado). Você ouve primeiro <b>0,1 s</b>; cada resposta errada libera automaticamente um trecho maior: <b>0,2 s → 0,5 s → 2 s → 5 s</b>.",
+"Das Opening beginnt <b>immer beim ersten Ton</b> (eine Stille am Anfang wird übersprungen). Zuerst hörst du <b>0,1 s</b>; jede falsche Antwort schaltet automatisch einen längeren Ausschnitt frei: <b>0,2 s → 0,5 s → 2 s → 5 s</b>."
 ],
 "sp2": [
 "Find <b>the anime</b> (and the <b>number</b> if that option is ticked) as early as possible: <b>5 points</b> at 0.1 s, <b>4</b> at 0.2 s, <b>3</b> at 0.5 s, <b>2</b> at 2 s, <b>1</b> at 5 s. After the last clip, a mistake or giving up earns 0.",
