@@ -90,7 +90,7 @@
   const streakEl = $('streak');
   const levelBtns = { easy: $('lvl-easy'), medium: $('lvl-medium'), hard: $('lvl-hard') };
 
-  // Mode « extraits éclair » (speed.html) : on part toujours du début de l'opening (du premier son, s'il y a du silence), et chaque erreur débloque un extrait plus long
+  // Mode « extraits éclair » (speed.html) : on part toujours du début de l'opening, et chaque erreur débloque un extrait plus long
   const SPEED = document.body.dataset.mode === 'speed';
   const STEPS = [0.1, 0.2, 0.5, 2, 5];          // durées successives de l'extrait (secondes)
   const STEP_POINTS = [5, 4, 3, 2, 1];          // points gagnés selon l'extrait où on trouve
@@ -1292,32 +1292,18 @@
   const audioBlobs = new Map();           // adresse -> { promise, blobUrl }
   function fetchAudioBlob(url) {
     const known = audioBlobs.get(url);
-    if (known && !known.failed) return known.promise;
-    const rec = { blobUrl: '', blob: null, err: '', failed: false, promise: null };
+    if (known) return known.promise;
+    const rec = { blobUrl: '', promise: null };
     rec.promise = (async () => {
       const ctl = new AbortController();
       const timer = setTimeout(() => ctl.abort(), 25000);
-      const attempt = async (opts) => {
-        const res = await fetch(url, Object.assign({ signal: ctl.signal }, opts));
-        if (!res.ok) throw new Error('HTTP ' + res.status);
-        return res.blob();
-      };
       try {
-        let blob;
-        try {
-          blob = await attempt({});
-        } catch (e1) {
-          // Certains navigateurs réutilisent une copie en cache sans autorisation « CORS » : on réessaie en ignorant le cache
-          rec.err = String((e1 && e1.message) || e1);
-          blob = await attempt({ cache: 'reload', mode: 'cors', credentials: 'omit' });
-          rec.err = '';
-        }
-        rec.blob = blob;
+        const res = await fetch(url, { signal: ctl.signal });
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        const blob = await res.blob();
         rec.blobUrl = URL.createObjectURL(blob);
         return rec.blobUrl;
       } catch (e) {
-        rec.err += (rec.err ? ' puis ' : '') + String((e && e.message) || e);
-        rec.failed = true;
         return '';
       } finally { clearTimeout(timer); }
     })();
@@ -1331,93 +1317,8 @@
     return rec.promise;
   }
 
-  // Mode Progressif : certains openings commencent par un silence. On repère l'instant du premier son
-  // (en analysant le fichier déjà téléchargé) pour que l'extrait démarre pile à ce moment-là.
-  const SOUND_REL = 0.12;          // le son « commence » quand il atteint 12 % du volume habituel de l'opening (≈ -18 dB) : ignore les fondus et souffles inaudibles
-  const SOUND_MIN = 0.004;         // volume minimal absolu (0 à 1), au cas où l'opening est très doux
-  const SOUND_WINDOW = 0.01;       // on mesure le volume par tranches de 10 ms
-  const SOUND_SUSTAIN = 4;         // il faut 4 tranches de suite (40 ms) au-dessus du seuil : un petit « clic » isolé ne compte pas
-  const SOUND_BACKOFF = 0.03;      // on démarre un tout petit peu avant, pour ne pas couper l'attaque (secondes)
-  const SOUND_MAX_LEAD = 30;       // on cherche le premier son dans les 30 premières secondes
-  const DEBUG_LEAD = /[?&]debug\b/.test(location.search);   // speed.html?debug : affiche le départ détecté
-
-  // chans : tableaux de valeurs audio (un par canal), rate : échantillons par seconde. Renvoie le temps du premier son, ou -1.
-  function findFirstSound(chans, rate) {
-    const len = chans.length ? chans[0].length : 0;
-    const win = Math.max(1, Math.round(SOUND_WINDOW * rate));
-    const count = Math.floor(Math.min(len, Math.ceil(40 * rate)) / win);     // tranches des 40 premières secondes
-    if (!count) return -1;
-    const rms = new Float32Array(count);
-    for (let k = 0; k < count; k++) {
-      let sum = 0;
-      for (let c = 0; c < chans.length; c++) {
-        const ch = chans[c];
-        for (let j = k * win; j < (k + 1) * win; j++) sum += ch[j] * ch[j];
-      }
-      rms[k] = Math.sqrt(sum / (win * chans.length));
-    }
-    // volume habituel = niveau dépassé par 10 % seulement des tranches
-    const sorted = Array.from(rms).sort((x, y) => x - y);
-    const ref = sorted[Math.min(count - 1, Math.floor(count * 0.9))];
-    const thr = Math.max(SOUND_MIN, SOUND_REL * ref);
-    const maxK = Math.min(count, Math.floor(SOUND_MAX_LEAD / SOUND_WINDOW));
-    let run = 0;
-    for (let k = 0; k < maxK; k++) {
-      if (rms[k] >= thr) {
-        run++;
-        if (run >= SOUND_SUSTAIN) return Math.max(0, ((k - run + 1) * win) / rate - SOUND_BACKOFF);
-      } else run = 0;
-    }
-    return -1;
-  }
-
-  const leadCache = new Map();     // adresse -> { lead, note }
-  const leadText = new Map();      // adresse -> texte affiché dans la correction (mode Progressif)
-  let leadNote = '';
-  function audioLead(url) {
-    if (leadCache.has(url)) return leadCache.get(url);
-    const p = (async () => {
-      const done = (lead, note) => { console.info('[Opening Quiz] début du son :', lead.toFixed(2), 's (' + note + ')'); return { lead, note }; };
-      try {
-        const rec = audioBlobs.get(url);
-        if (!rec) return done(0, 'fichier inconnu');
-        await rec.promise;
-        if (!rec.blob) return done(0, 'téléchargement impossible');
-        const Ctx = window.OfflineAudioContext || window.webkitOfflineAudioContext;
-        if (!Ctx) return done(0, 'analyse non disponible sur ce navigateur');
-        const ctx = new Ctx(1, 1, 22050);
-        const buf = await rec.blob.arrayBuffer();
-        const data = await new Promise((resolve, reject) => {
-          const r = ctx.decodeAudioData(buf, resolve, reject);   // forme avec rappels (anciens Safari)
-          if (r && typeof r.then === 'function') r.then(resolve, reject);
-        });
-        const chans = [];
-        for (let c = 0; c < data.numberOfChannels; c++) chans.push(data.getChannelData(c));
-        const t = findFirstSound(chans, data.sampleRate);
-        if (t < 0) return done(0, 'aucun son trouvé');
-        return done(t, 'son trouvé');
-      } catch (e) { return done(0, 'analyse impossible : ' + (e && e.message ? e.message : e)); }
-    })();
-    leadCache.set(url, p);
-    return p;
-  }
-
   async function prepareAudio(url, forcedStart) {
     const local = await Promise.race([fetchAudioBlob(url), sleep(10000).then(() => '')]);
-    let lead = 0;
-    if (SPEED && !local) {
-      const r0 = audioBlobs.get(url);
-      leadText.set(url, '0,00 s (téléchargement impossible : ' + ((r0 && r0.err) || 'délai dépassé') + ')');
-    }
-    if (SPEED && local) {
-      const res = await Promise.race([audioLead(url), sleep(8000).then(() => ({ lead: 0, note: 'analyse trop lente' }))]);
-      lead = res.lead;
-      leadText.set(url, lead.toFixed(2).replace('.', ',') + ' s (' + res.note + ')');
-      if (DEBUG_LEAD) {
-        noticeEl.textContent = 'Test : le son commence à ' + lead.toFixed(2) + ' s (' + res.note + ')';
-        noticeEl.classList.remove('hidden');
-      }
-    }
     return new Promise((resolve) => {
       let finished = false;
       const finish = (ok) => {
@@ -1435,7 +1336,7 @@
 
         // Point de départ aléatoire, n'importe où dans l'opening (avec la place pour tout l'extrait)
         const maxStart = Number.isFinite(d) ? Math.max(0, d - snippetSeconds - 0.5) : 30;
-        snippetStart = SPEED ? Math.min(lead, Math.max(0, (Number.isFinite(d) ? d : 30) - STEPS[STEPS.length - 1] - 0.5)) : typeof forcedStart === 'number' ? Math.min(Math.max(0, forcedStart), maxStart) : Math.random() * maxStart;
+        snippetStart = SPEED ? 0 : typeof forcedStart === 'number' ? Math.min(Math.max(0, forcedStart), maxStart) : Math.random() * maxStart;
         finish(true);
       };
       const onError = () => { lastFail = 'audio ' + (audio.error ? 'code ' + audio.error.code : 'illisible'); finish(false); };
@@ -1514,7 +1415,7 @@
     stage++;
     snippetSeconds = STEPS[stage];
     audio.pause();
-    audio.currentTime = snippetStart;
+    audio.currentTime = 0;
     renderStages();
     refreshSeek();
     updatePlayBtn();
@@ -2015,7 +1916,6 @@
     if (date) addDetail('Sortie', date);
     if (SPEED) {
       if (lastVerdict.cls === 'correct') addDetail('Trouvé à', fmtStep(STEPS[lastVerdict.stage]));
-      if (SPEED) addDetail('Début du son', leadText.get(round.url) || '0,00 s (analyse non lancée)');
       addDetail('Points', String(lastVerdict.points || 0));
     }
     const diff = addDetail('Difficulté', '');
