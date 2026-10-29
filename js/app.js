@@ -1318,40 +1318,59 @@
 
   // Mode Progressif : certains openings commencent par un silence. On repère l'instant du premier son
   // (en analysant le fichier déjà téléchargé) pour que l'extrait démarre pile à ce moment-là.
-  const SOUND_LEVEL = 1;        // volume (0 à 1) à partir duquel on considère que le son a commencé
+  const SOUND_RMS = 0.004;         // volume moyen (0 à 1) à partir duquel on considère que le son a commencé (≈ -48 dB : très bas)
+  const SOUND_WINDOW = 0.01;       // on mesure le volume par tranches de 10 ms
+  const SOUND_SUSTAIN = 4;         // il faut 4 tranches de suite (40 ms) au-dessus du seuil : un petit « clic » isolé ne compte pas
   const SOUND_BACKOFF = 0.03;      // on démarre un tout petit peu avant, pour ne pas couper l'attaque (secondes)
-  const SOUND_MAX_LEAD = 20;       // au-delà, on ignore (silence trop long = probablement une erreur de détection)
-  const leadCache = new Map();     // adresse -> secondes de silence au début
+  const SOUND_MAX_LEAD = 30;       // on cherche le premier son dans les 30 premières secondes
+  const DEBUG_LEAD = /[?&]debug\b/.test(location.search);   // speed.html?debug : affiche le départ détecté
+
+  // chans : tableaux de valeurs audio (un par canal), rate : échantillons par seconde. Renvoie le temps du premier son, ou -1.
+  function findFirstSound(chans, rate) {
+    const len = chans.length ? chans[0].length : 0;
+    const win = Math.max(1, Math.round(SOUND_WINDOW * rate));
+    const limit = Math.min(len, Math.ceil(SOUND_MAX_LEAD * rate));
+    const thr = SOUND_RMS * SOUND_RMS;
+    let run = 0;
+    for (let i = 0; i + win <= limit; i += win) {
+      let sum = 0;
+      for (let c = 0; c < chans.length; c++) {
+        const ch = chans[c];
+        for (let j = i; j < i + win; j++) sum += ch[j] * ch[j];
+      }
+      if (sum / (win * chans.length) >= thr) {
+        run++;
+        if (run >= SOUND_SUSTAIN) return Math.max(0, (i - (run - 1) * win) / rate - SOUND_BACKOFF);
+      } else run = 0;
+    }
+    return -1;
+  }
+
+  const leadCache = new Map();     // adresse -> { lead, note }
+  let leadNote = '';
   function audioLead(url) {
     if (leadCache.has(url)) return leadCache.get(url);
     const p = (async () => {
+      const done = (lead, note) => { console.info('[Opening Quiz] début du son :', lead.toFixed(2), 's (' + note + ')'); return { lead, note }; };
       try {
         const rec = audioBlobs.get(url);
-        if (!rec) return 0;
+        if (!rec) return done(0, 'fichier inconnu');
         await rec.promise;
-        if (!rec.blob) return 0;
+        if (!rec.blob) return done(0, 'téléchargement impossible');
         const Ctx = window.OfflineAudioContext || window.webkitOfflineAudioContext;
-        if (!Ctx) return 0;
+        if (!Ctx) return done(0, 'analyse non disponible sur ce navigateur');
         const ctx = new Ctx(1, 1, 22050);
         const buf = await rec.blob.arrayBuffer();
         const data = await new Promise((resolve, reject) => {
           const r = ctx.decodeAudioData(buf, resolve, reject);   // forme avec rappels (anciens Safari)
           if (r && typeof r.then === 'function') r.then(resolve, reject);
         });
-        const rate = data.sampleRate;
-        const limit = Math.min(data.length, Math.ceil(SOUND_MAX_LEAD * rate));
         const chans = [];
         for (let c = 0; c < data.numberOfChannels; c++) chans.push(data.getChannelData(c));
-        for (let i = 0; i < limit; i++) {
-          for (let c = 0; c < chans.length; c++) {
-            const v = chans[c][i];
-            if (v > SOUND_LEVEL || v < -SOUND_LEVEL) {
-              return Math.max(0, i / rate - SOUND_BACKOFF);
-            }
-          }
-        }
-        return 0;
-      } catch (e) { return 0; }
+        const t = findFirstSound(chans, data.sampleRate);
+        if (t < 0) return done(0, 'aucun son trouvé');
+        return done(t, 'son trouvé');
+      } catch (e) { return done(0, 'analyse impossible : ' + (e && e.message ? e.message : e)); }
     })();
     leadCache.set(url, p);
     return p;
@@ -1359,7 +1378,15 @@
 
   async function prepareAudio(url, forcedStart) {
     const local = await Promise.race([fetchAudioBlob(url), sleep(10000).then(() => '')]);
-    const lead = SPEED && local ? await Promise.race([audioLead(url), sleep(6000).then(() => 0)]) : 0;
+    let lead = 0;
+    if (SPEED && local) {
+      const res = await Promise.race([audioLead(url), sleep(8000).then(() => ({ lead: 0, note: 'analyse trop lente' }))]);
+      lead = res.lead;
+      if (DEBUG_LEAD) {
+        noticeEl.textContent = 'Test : le son commence à ' + lead.toFixed(2) + ' s (' + res.note + ')';
+        noticeEl.classList.remove('hidden');
+      }
+    }
     return new Promise((resolve) => {
       let finished = false;
       const finish = (ok) => {
