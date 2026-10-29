@@ -1318,7 +1318,8 @@
 
   // Mode Progressif : certains openings commencent par un silence. On repère l'instant du premier son
   // (en analysant le fichier déjà téléchargé) pour que l'extrait démarre pile à ce moment-là.
-  const SOUND_RMS = 0.004;         // volume moyen (0 à 1) à partir duquel on considère que le son a commencé (≈ -48 dB : très bas)
+  const SOUND_REL = 0.12;          // le son « commence » quand il atteint 12 % du volume habituel de l'opening (≈ -18 dB) : ignore les fondus et souffles inaudibles
+  const SOUND_MIN = 0.004;         // volume minimal absolu (0 à 1), au cas où l'opening est très doux
   const SOUND_WINDOW = 0.01;       // on mesure le volume par tranches de 10 ms
   const SOUND_SUSTAIN = 4;         // il faut 4 tranches de suite (40 ms) au-dessus du seuil : un petit « clic » isolé ne compte pas
   const SOUND_BACKOFF = 0.03;      // on démarre un tout petit peu avant, pour ne pas couper l'attaque (secondes)
@@ -1329,24 +1330,34 @@
   function findFirstSound(chans, rate) {
     const len = chans.length ? chans[0].length : 0;
     const win = Math.max(1, Math.round(SOUND_WINDOW * rate));
-    const limit = Math.min(len, Math.ceil(SOUND_MAX_LEAD * rate));
-    const thr = SOUND_RMS * SOUND_RMS;
-    let run = 0;
-    for (let i = 0; i + win <= limit; i += win) {
+    const count = Math.floor(Math.min(len, Math.ceil(40 * rate)) / win);     // tranches des 40 premières secondes
+    if (!count) return -1;
+    const rms = new Float32Array(count);
+    for (let k = 0; k < count; k++) {
       let sum = 0;
       for (let c = 0; c < chans.length; c++) {
         const ch = chans[c];
-        for (let j = i; j < i + win; j++) sum += ch[j] * ch[j];
+        for (let j = k * win; j < (k + 1) * win; j++) sum += ch[j] * ch[j];
       }
-      if (sum / (win * chans.length) >= thr) {
+      rms[k] = Math.sqrt(sum / (win * chans.length));
+    }
+    // volume habituel = niveau dépassé par 10 % seulement des tranches
+    const sorted = Array.from(rms).sort((x, y) => x - y);
+    const ref = sorted[Math.min(count - 1, Math.floor(count * 0.9))];
+    const thr = Math.max(SOUND_MIN, SOUND_REL * ref);
+    const maxK = Math.min(count, Math.floor(SOUND_MAX_LEAD / SOUND_WINDOW));
+    let run = 0;
+    for (let k = 0; k < maxK; k++) {
+      if (rms[k] >= thr) {
         run++;
-        if (run >= SOUND_SUSTAIN) return Math.max(0, (i - (run - 1) * win) / rate - SOUND_BACKOFF);
+        if (run >= SOUND_SUSTAIN) return Math.max(0, ((k - run + 1) * win) / rate - SOUND_BACKOFF);
       } else run = 0;
     }
     return -1;
   }
 
   const leadCache = new Map();     // adresse -> { lead, note }
+  const leadText = new Map();      // adresse -> texte affiché dans la correction (mode Progressif)
   let leadNote = '';
   function audioLead(url) {
     if (leadCache.has(url)) return leadCache.get(url);
@@ -1382,6 +1393,7 @@
     if (SPEED && local) {
       const res = await Promise.race([audioLead(url), sleep(8000).then(() => ({ lead: 0, note: 'analyse trop lente' }))]);
       lead = res.lead;
+      leadText.set(url, lead.toFixed(2).replace('.', ',') + ' s (' + res.note + ')');
       if (DEBUG_LEAD) {
         noticeEl.textContent = 'Test : le son commence à ' + lead.toFixed(2) + ' s (' + res.note + ')';
         noticeEl.classList.remove('hidden');
@@ -1984,6 +1996,7 @@
     if (date) addDetail('Sortie', date);
     if (SPEED) {
       if (lastVerdict.cls === 'correct') addDetail('Trouvé à', fmtStep(STEPS[lastVerdict.stage]));
+      if (SPEED && leadText.has(round.url)) addDetail('Début du son', leadText.get(round.url));
       addDetail('Points', String(lastVerdict.points || 0));
     }
     const diff = addDetail('Difficulté', '');
