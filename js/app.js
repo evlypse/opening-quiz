@@ -1390,6 +1390,7 @@
   async function prepareAudio(url, forcedStart) {
     const local = await Promise.race([fetchAudioBlob(url), sleep(10000).then(() => '')]);
     let lead = 0;
+    if (SPEED && !local) leadText.set(url, '0,00 s (téléchargement impossible : analyse non faite)');
     if (SPEED && local) {
       const res = await Promise.race([audioLead(url), sleep(8000).then(() => ({ lead: 0, note: 'analyse trop lente' }))]);
       lead = res.lead;
@@ -1996,7 +1997,7 @@
     if (date) addDetail('Sortie', date);
     if (SPEED) {
       if (lastVerdict.cls === 'correct') addDetail('Trouvé à', fmtStep(STEPS[lastVerdict.stage]));
-      if (SPEED && leadText.has(round.url)) addDetail('Début du son', leadText.get(round.url));
+      if (SPEED) addDetail('Début du son', leadText.get(round.url) || '0,00 s (analyse non lancée)');
       addDetail('Points', String(lastVerdict.points || 0));
     }
     const diff = addDetail('Difficulté', '');
