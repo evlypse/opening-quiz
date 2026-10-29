@@ -1291,18 +1291,30 @@
   function fetchAudioBlob(url) {
     const known = audioBlobs.get(url);
     if (known) return known.promise;
-    const rec = { blobUrl: '', blob: null, promise: null };
+    const rec = { blobUrl: '', blob: null, err: '', promise: null };
     rec.promise = (async () => {
       const ctl = new AbortController();
       const timer = setTimeout(() => ctl.abort(), 25000);
-      try {
-        const res = await fetch(url, { signal: ctl.signal });
+      const attempt = async (opts) => {
+        const res = await fetch(url, Object.assign({ signal: ctl.signal }, opts));
         if (!res.ok) throw new Error('HTTP ' + res.status);
-        const blob = await res.blob();
+        return res.blob();
+      };
+      try {
+        let blob;
+        try {
+          blob = await attempt({});
+        } catch (e1) {
+          // Certains navigateurs réutilisent une copie en cache sans autorisation « CORS » : on réessaie en ignorant le cache
+          rec.err = String((e1 && e1.message) || e1);
+          blob = await attempt({ cache: 'reload', mode: 'cors', credentials: 'omit' });
+          rec.err = '';
+        }
         rec.blob = blob;
         rec.blobUrl = URL.createObjectURL(blob);
         return rec.blobUrl;
       } catch (e) {
+        rec.err += (rec.err ? ' puis ' : '') + String((e && e.message) || e);
         return '';
       } finally { clearTimeout(timer); }
     })();
@@ -1390,7 +1402,10 @@
   async function prepareAudio(url, forcedStart) {
     const local = await Promise.race([fetchAudioBlob(url), sleep(10000).then(() => '')]);
     let lead = 0;
-    if (SPEED && !local) leadText.set(url, '0,00 s (téléchargement impossible : analyse non faite)');
+    if (SPEED && !local) {
+      const r0 = audioBlobs.get(url);
+      leadText.set(url, '0,00 s (téléchargement impossible : ' + ((r0 && r0.err) || 'délai dépassé') + ')');
+    }
     if (SPEED && local) {
       const res = await Promise.race([audioLead(url), sleep(8000).then(() => ({ lead: 0, note: 'analyse trop lente' }))]);
       lead = res.lead;
