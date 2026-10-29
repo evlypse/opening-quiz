@@ -1281,6 +1281,8 @@
   }
 
   window.addEventListener('beforeunload', () => { saveIndexCache(); saveNames(); });
+  window.addEventListener('pagehide', () => { try { audio.pause(); } catch (e) { /* ignoré */ } });
+  window.addEventListener('pageshow', (e) => { if (e.persisted) location.reload(); });   // page ressortie de la mémoire du navigateur : état périmé, on recharge
 
   /* ------------------------------------------------------------------
    * Chargement audio
@@ -1290,8 +1292,8 @@
   const audioBlobs = new Map();           // adresse -> { promise, blobUrl }
   function fetchAudioBlob(url) {
     const known = audioBlobs.get(url);
-    if (known) return known.promise;
-    const rec = { blobUrl: '', blob: null, err: '', promise: null };
+    if (known && !known.failed) return known.promise;
+    const rec = { blobUrl: '', blob: null, err: '', failed: false, promise: null };
     rec.promise = (async () => {
       const ctl = new AbortController();
       const timer = setTimeout(() => ctl.abort(), 25000);
@@ -1315,6 +1317,7 @@
         return rec.blobUrl;
       } catch (e) {
         rec.err += (rec.err ? ' puis ' : '') + String((e && e.message) || e);
+        rec.failed = true;
         return '';
       } finally { clearTimeout(timer); }
     })();
