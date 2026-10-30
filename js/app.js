@@ -1317,8 +1317,90 @@
     return rec.promise;
   }
 
+  /* ------------------------------------------------------------------
+   * Mode Progressif : départ de l'extrait au premier son
+   * ------------------------------------------------------------------
+   * Les serveurs d'AnimeThemes interdisent à un autre site de lire leurs fichiers audio : on passe donc par un petit
+   * relais (Cloudflare Worker, voir worker.js) qui renvoie le début du fichier avec l'autorisation nécessaire.
+   * Colle ici l'adresse de ton relais, par exemple 'https://opening-proxy.ton-compte.workers.dev/'.
+   * Laissée vide, cette fonction est désactivée et le mode Progressif part du début de l'opening comme avant. */
+  const LEAD_PROXY = 'https://opening-proxy.lansorrien.workers.dev/';
+  const SOUND_REL = 0.12;          // le son « commence » quand il atteint 12 % du volume habituel de l'opening (≈ -18 dB)
+  const SOUND_MIN = 0.004;         // volume minimal absolu (0 à 1), au cas où l'opening est très doux
+  const SOUND_WINDOW = 0.01;       // on mesure le volume par tranches de 10 ms
+  const SOUND_SUSTAIN = 4;         // 4 tranches de suite (40 ms) au-dessus du seuil : un petit « clic » isolé ne compte pas
+  const SOUND_BACKOFF = 0.03;      // on démarre un tout petit peu avant, pour ne pas couper l'attaque (secondes)
+  const SOUND_MAX_LEAD = 30;       // on cherche le premier son dans les 30 premières secondes
+
+  // chans : tableaux de valeurs audio (un par canal), rate : échantillons par seconde. Renvoie le temps du premier son, ou -1.
+  function findFirstSound(chans, rate) {
+    const len = chans.length ? chans[0].length : 0;
+    const win = Math.max(1, Math.round(SOUND_WINDOW * rate));
+    const count = Math.floor(Math.min(len, Math.ceil(40 * rate)) / win);
+    if (!count) return -1;
+    const rms = new Float32Array(count);
+    for (let k = 0; k < count; k++) {
+      let sum = 0;
+      for (let c = 0; c < chans.length; c++) {
+        const ch = chans[c];
+        for (let j = k * win; j < (k + 1) * win; j++) sum += ch[j] * ch[j];
+      }
+      rms[k] = Math.sqrt(sum / (win * chans.length));
+    }
+    const sorted = Array.from(rms).sort((x, y) => x - y);
+    const ref = sorted[Math.min(count - 1, Math.floor(count * 0.9))];    // volume habituel
+    const thr = Math.max(SOUND_MIN, SOUND_REL * ref);
+    const maxK = Math.min(count, Math.floor(SOUND_MAX_LEAD / SOUND_WINDOW));
+    let run = 0;
+    for (let k = 0; k < maxK; k++) {
+      if (rms[k] >= thr) {
+        run++;
+        if (run >= SOUND_SUSTAIN) return Math.max(0, ((k - run + 1) * win) / rate - SOUND_BACKOFF);
+      } else run = 0;
+    }
+    return -1;
+  }
+
+  const leadCache = new Map();     // adresse -> { lead, note } (une seule demande par fichier, réussie ou non)
+  const leadText = new Map();      // adresse -> texte affiché dans la correction
+  function audioLead(url) {
+    if (leadCache.has(url)) return leadCache.get(url);
+    const p = (async () => {
+      const done = (lead, note) => ({ lead, note });
+      const ctl = new AbortController();
+      const timer = setTimeout(() => ctl.abort(), 8000);
+      try {
+        const res = await fetch(LEAD_PROXY + (LEAD_PROXY.indexOf('?') < 0 ? '?' : '&') + 'u=' + encodeURIComponent(url), { signal: ctl.signal });
+        if (!res.ok) return done(0, 'relais : erreur ' + res.status);
+        const buf = await res.arrayBuffer();
+        const Ctx = window.OfflineAudioContext || window.webkitOfflineAudioContext;
+        if (!Ctx) return done(0, 'analyse non disponible sur ce navigateur');
+        const ctx = new Ctx(1, 1, 22050);
+        const data = await new Promise((resolve, reject) => {
+          const r = ctx.decodeAudioData(buf, resolve, reject);
+          if (r && typeof r.then === 'function') r.then(resolve, reject);
+        });
+        const chans = [];
+        for (let c = 0; c < data.numberOfChannels; c++) chans.push(data.getChannelData(c));
+        const t = findFirstSound(chans, data.sampleRate);
+        return t < 0 ? done(0, 'aucun son trouvé') : done(t, 'son trouvé');
+      } catch (e) {
+        return done(0, 'analyse impossible : ' + (e && e.message ? e.message : e));
+      } finally { clearTimeout(timer); }
+    })();
+    leadCache.set(url, p);
+    return p;
+  }
+
   async function prepareAudio(url, forcedStart) {
+    const leadReq = SPEED && LEAD_PROXY ? audioLead(url) : null;
     const local = await Promise.race([fetchAudioBlob(url), sleep(10000).then(() => '')]);
+    let lead = 0;
+    if (leadReq) {
+      const res = await Promise.race([leadReq, sleep(9000).then(() => ({ lead: 0, note: 'relais trop lent' }))]);
+      lead = res.lead;
+      leadText.set(url, lead.toFixed(2).replace('.', ',') + ' s (' + res.note + ')');
+    }
     return new Promise((resolve) => {
       let finished = false;
       const finish = (ok) => {
@@ -1336,7 +1418,7 @@
 
         // Point de départ aléatoire, n'importe où dans l'opening (avec la place pour tout l'extrait)
         const maxStart = Number.isFinite(d) ? Math.max(0, d - snippetSeconds - 0.5) : 30;
-        snippetStart = SPEED ? 0 : typeof forcedStart === 'number' ? Math.min(Math.max(0, forcedStart), maxStart) : Math.random() * maxStart;
+        snippetStart = SPEED ? Math.min(lead, Math.max(0, (Number.isFinite(d) ? d : 30) - STEPS[STEPS.length - 1] - 0.5)) : typeof forcedStart === 'number' ? Math.min(Math.max(0, forcedStart), maxStart) : Math.random() * maxStart;
         finish(true);
       };
       const onError = () => { lastFail = 'audio ' + (audio.error ? 'code ' + audio.error.code : 'illisible'); finish(false); };
@@ -1415,7 +1497,7 @@
     stage++;
     snippetSeconds = STEPS[stage];
     audio.pause();
-    audio.currentTime = 0;
+    audio.currentTime = snippetStart;
     renderStages();
     refreshSeek();
     updatePlayBtn();
@@ -1916,6 +1998,7 @@
     if (date) addDetail('Sortie', date);
     if (SPEED) {
       if (lastVerdict.cls === 'correct') addDetail('Trouvé à', fmtStep(STEPS[lastVerdict.stage]));
+      if (SPEED && LEAD_PROXY) addDetail('Début du son', leadText.get(round.url) || 'non analysé');
       addDetail('Points', String(lastVerdict.points || 0));
     }
     const diff = addDetail('Difficulté', '');
