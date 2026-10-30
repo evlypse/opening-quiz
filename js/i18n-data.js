@@ -323,6 +323,13 @@ window.I18N_ROWS = [
 "Aufgeben"
 ],
 [
+"Extrait suivant",
+"Next clip",
+"Siguiente fragmento",
+"Próximo trecho",
+"Nächster Ausschnitt"
+],
+[
 "Fiche MyAnimeList ↗",
 "MyAnimeList page ↗",
 "Ficha de MyAnimeList ↗",
@@ -2794,16 +2801,16 @@ window.I18N_HTML = {
 "<b>3 Punkte</b> pro richtiger Antwort ohne Hinweis, <b>2</b> mit dem ganzen Opening, <b>1</b> mit den Initialen."
 ],
 "sp1": [
-"The opening <b>always starts from the beginning</b>. You first hear <b>0.1 s</b>; each wrong answer automatically unlocks a longer clip: <b>0.2 s → 0.5 s → 2 s → 5 s</b>.",
-"El opening <b>siempre empieza desde el principio</b>. Primero oyes <b>0,1 s</b>; cada respuesta incorrecta desbloquea automáticamente un fragmento más largo: <b>0,2 s → 0,5 s → 2 s → 5 s</b>.",
-"O opening <b>sempre começa do início</b>. Você ouve primeiro <b>0,1 s</b>; cada resposta errada libera automaticamente um trecho maior: <b>0,2 s → 0,5 s → 2 s → 5 s</b>.",
-"Das Opening beginnt <b>immer am Anfang</b>. Zuerst hörst du <b>0,1 s</b>; jede falsche Antwort schaltet automatisch einen längeren Ausschnitt frei: <b>0,2 s → 0,5 s → 2 s → 5 s</b>."
+"The opening <b>starts at the first sound</b> (any silence at the beginning is skipped). You first hear <b>0.1 s</b>; each wrong answer, or a click on <b>Next clip</b>, unlocks a longer clip: <b>0.5 s → 1 s → 3 s → 10 s</b>.",
+"El opening <b>empieza en el primer sonido</b> (se salta el silencio inicial, si lo hay). Primero oyes <b>0,1 s</b>; cada respuesta incorrecta, o un clic en <b>Siguiente fragmento</b>, desbloquea un fragmento más largo: <b>0,5 s → 1 s → 3 s → 10 s</b>.",
+"O opening <b>começa no primeiro som</b> (o silêncio inicial, se houver, é pulado). Você ouve primeiro <b>0,1 s</b>; cada resposta errada, ou um clique em <b>Próximo trecho</b>, libera um trecho maior: <b>0,5 s → 1 s → 3 s → 10 s</b>.",
+"Das Opening beginnt <b>beim ersten Ton</b> (eine Stille am Anfang wird übersprungen). Zuerst hörst du <b>0,1 s</b>; jede falsche Antwort oder ein Klick auf <b>Nächster Ausschnitt</b> schaltet einen längeren Ausschnitt frei: <b>0,5 s → 1 s → 3 s → 10 s</b>."
 ],
 "sp2": [
-"Find <b>the anime</b> (and the <b>number</b> if that option is ticked) as early as possible: <b>5 points</b> at 0.1 s, <b>4</b> at 0.2 s, <b>3</b> at 0.5 s, <b>2</b> at 2 s, <b>1</b> at 5 s. After the last clip, a mistake or giving up earns 0.",
-"Encuentra <b>el anime</b> (y el <b>número</b> si la opción está marcada) lo antes posible: <b>5 puntos</b> a 0,1 s, <b>4</b> a 0,2 s, <b>3</b> a 0,5 s, <b>2</b> a 2 s, <b>1</b> a 5 s. Tras el último fragmento, un error o rendirse da 0.",
-"Encontre <b>o anime</b> (e o <b>número</b> se a opção estiver marcada) o mais cedo possível: <b>5 pontos</b> em 0,1 s, <b>4</b> em 0,2 s, <b>3</b> em 0,5 s, <b>2</b> em 2 s, <b>1</b> em 5 s. Depois do último trecho, um erro ou desistir vale 0.",
-"Finde <b>den Anime</b> (und die <b>Nummer</b>, wenn die Option angehakt ist) so früh wie möglich: <b>5 Punkte</b> bei 0,1 s, <b>4</b> bei 0,2 s, <b>3</b> bei 0,5 s, <b>2</b> bei 2 s, <b>1</b> bei 5 s. Nach dem letzten Ausschnitt gibt ein Fehler oder Aufgeben 0."
+"Find <b>the anime</b> (and the <b>number</b> if that option is ticked) as early as possible: <b>5 points</b> at 0.1 s, <b>4</b> at 0.5 s, <b>3</b> at 1 s, <b>2</b> at 3 s, <b>1</b> at 10 s. After the last clip, a mistake or giving up earns 0.",
+"Encuentra <b>el anime</b> (y el <b>número</b> si la opción está marcada) lo antes posible: <b>5 puntos</b> a 0,1 s, <b>4</b> a 0,5 s, <b>3</b> a 1 s, <b>2</b> a 3 s, <b>1</b> a 10 s. Tras el último fragmento, un error o rendirse da 0.",
+"Encontre <b>o anime</b> (e o <b>número</b> se a opção estiver marcada) o mais cedo possível: <b>5 pontos</b> em 0,1 s, <b>4</b> em 0,5 s, <b>3</b> em 1 s, <b>2</b> em 3 s, <b>1</b> em 10 s. Depois do último trecho, um erro ou desistir vale 0.",
+"Finde <b>den Anime</b> (und die <b>Nummer</b>, wenn die Option angehakt ist) so früh wie möglich: <b>5 Punkte</b> bei 0,1 s, <b>4</b> bei 0,5 s, <b>3</b> bei 1 s, <b>2</b> bei 3 s, <b>1</b> bei 10 s. Nach dem letzten Ausschnitt gibt ein Fehler oder Aufgeben 0."
 ],
 "sp3": [
 "The settings (difficulties, genres, years, number, automatic video) are the same as in the main game and are shared with it.",

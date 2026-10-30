@@ -74,6 +74,7 @@
   const waitMsg = $('wait-msg');
   const submitBtn = $('submit-btn');
   const giveUpBtn = $('giveup-btn');
+  const nextStageBtn = $('nextstage-btn');   // mode Progressif : passer à l'extrait suivant sans abandonner
   const resultCard = $('result');
   const verdictEl = $('verdict');
   const detailsEl = $('result-details');
@@ -92,7 +93,7 @@
 
   // Mode « extraits éclair » (speed.html) : on part toujours du début de l'opening, et chaque erreur débloque un extrait plus long
   const SPEED = document.body.dataset.mode === 'speed';
-  const STEPS = [0.1, 0.2, 0.5, 2, 5];          // durées successives de l'extrait (secondes)
+  const STEPS = [0.1, 0.5, 1, 3, 10];          // durées successives de l'extrait (secondes)
   const STEP_POINTS = [5, 4, 3, 2, 1];          // points gagnés selon l'extrait où on trouve
   const stagesEl = $('stages');
   const scoreEl = $('speed-score');
@@ -1362,7 +1363,6 @@
   }
 
   const leadCache = new Map();     // adresse -> { lead, note } (une seule demande par fichier, réussie ou non)
-  const leadText = new Map();      // adresse -> texte affiché dans la correction
   function audioLead(url) {
     if (leadCache.has(url)) return leadCache.get(url);
     const p = (async () => {
@@ -1399,7 +1399,6 @@
     if (leadReq) {
       const res = await Promise.race([leadReq, sleep(9000).then(() => ({ lead: 0, note: 'relais trop lent' }))]);
       lead = res.lead;
-      leadText.set(url, lead.toFixed(2).replace('.', ',') + ' s (' + res.note + ')');
     }
     return new Promise((resolve) => {
       let finished = false;
@@ -1491,6 +1490,12 @@
     });
   }
 
+  // Le bouton « Extrait suivant » n'est actif que pendant une manche, tant qu'il reste un extrait à débloquer
+  function syncNextStage() {
+    if (!nextStageBtn) return;
+    nextStageBtn.disabled = !(SPEED && ready && round && !answered && stage < STEPS.length - 1);
+  }
+
   // Débloque l'extrait suivant (après une erreur ou en le demandant) et le joue tout de suite
   function unlockNext() {
     if (!SPEED || !round || answered || stage >= STEPS.length - 1) return;
@@ -1501,6 +1506,7 @@
     renderStages();
     refreshSeek();
     updatePlayBtn();
+    syncNextStage();
     audio.play().catch(() => { /* lecture refusée : le bouton Écouter reste dispo */ });
   }
 
@@ -1539,6 +1545,7 @@
     openingInput.disabled = false;
     submitBtn.disabled = true;
     giveUpBtn.disabled = true;
+    syncNextStage();
     answerMsg.textContent = '';
     waitMsg.classList.add('hidden');
     closeSuggestions();
@@ -1610,6 +1617,7 @@
     statusEl.textContent = '';
     submitBtn.disabled = false;
     giveUpBtn.disabled = false;
+    syncNextStage();
     updatePlayBtn();
     renderStages();
     // Sur téléphone, on ne met pas le curseur dans le champ : cela ouvrirait le clavier tout seul
@@ -1998,7 +2006,6 @@
     if (date) addDetail('Sortie', date);
     if (SPEED) {
       if (lastVerdict.cls === 'correct') addDetail('Trouvé à', fmtStep(STEPS[lastVerdict.stage]));
-      if (SPEED && LEAD_PROXY) addDetail('Début du son', leadText.get(round.url) || 'non analysé');
       addDetail('Points', String(lastVerdict.points || 0));
     }
     const diff = addDetail('Difficulté', '');
@@ -2051,6 +2058,7 @@
     openingInput.disabled = true;
     submitBtn.disabled = true;
     giveUpBtn.disabled = true;
+    syncNextStage();
     closeSuggestions();
     playerCard.classList.add('answered');
     const hints = lettersShown ? 2 : (usedFull ? 1 : 0);      // 0 aucun indice, 1 opening entier, 2 initiales
@@ -2119,6 +2127,8 @@
     }
     finishRound(guess, num, false);
   });
+
+  if (nextStageBtn) nextStageBtn.addEventListener('click', () => { if (!nextStageBtn.disabled) unlockNext(); });
 
   giveUpBtn.addEventListener('click', () => {
     if (!round || answered) return;
