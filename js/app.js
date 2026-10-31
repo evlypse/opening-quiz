@@ -5,6 +5,11 @@
    * Réglages
    * ------------------------------------------------------------------ */
   const API = 'https://api.animethemes.moe';
+  // Relais Cloudflare (worker.js) : AnimeThemes interdit à un autre site de lire ses fichiers audio ; le relais les renvoie
+  // avec l'autorisation nécessaire. Sert (1) à garder l'audio en mémoire (lecture instantanée), (2) à trouver le premier son.
+  // Laissé vide : le site lit l'audio directement, avec un temps d'attente plus long au démarrage.
+  const LEAD_PROXY = 'https://opening-proxy.lansorrien.workers.dev/';
+  const viaRelay = (u, full) => LEAD_PROXY + (LEAD_PROXY.indexOf('?') < 0 ? '?' : '&') + 'u=' + encodeURIComponent(u) + (full ? '&full=1' : '');
   const DEFAULT_LENGTH = 5;       // durée par défaut de l'extrait (secondes)
   const MIN_LENGTH = 0.1;
   const MAX_LENGTH = 20;          // durée maximale de l'extrait
@@ -469,12 +474,13 @@
    * - Extrait : la barre couvre uniquement la durée de l'extrait
    * - Opening entier : la barre couvre toute la durée
    * ------------------------------------------------------------------ */
+  // Un seul format pour toutes les durées : minutes:secondes.dixièmes (0:05.0 ; 0:10.0 ; 1:32.4)
   const fmtClock = (s) => {
-    const t = Math.max(0, Math.floor(s));
-    return Math.floor(t / 60) + ':' + String(t % 60).padStart(2, '0');
+    const d = Math.max(0, Math.floor(s * 10 + 1e-6));        // en dixièmes de seconde
+    const sec = Math.floor((d % 600) / 10);
+    return Math.floor(d / 600) + ':' + String(sec).padStart(2, '0') + '.' + (d % 10);
   };
-  // Pour les durées courtes (< 10 s), on affiche les dixièmes de seconde
-  const fmtTime = (s, len) => (len < 10 ? Math.max(0, s).toFixed(1) + ' s' : fmtClock(s));
+  const fmtTime = (s) => fmtClock(s);
 
   // Durée réellement jouable de l'extrait (au cas où l'audio serait plus court)
   function snippetLength() {
@@ -576,12 +582,38 @@
     rafId = requestAnimationFrame(tick);
   }
 
+  // La boucle d'animation (tick) s'arrête quand l'onglet est en arrière-plan : la limite de l'extrait est donc aussi
+  // surveillée par les événements du lecteur, une minuterie exacte, et au retour sur l'onglet.
+  let limitTimer = 0;
+  function enforceLimit() {
+    if (audio.paused || fullUnlocked || !ready) return false;
+    const end = snippetStart + snippetLength();
+    if (audio.currentTime < end) return false;
+    audio.pause();
+    audio.currentTime = end;
+    refreshSeek();
+    updatePlayBtn();
+    return true;
+  }
+  function armLimit() {
+    clearTimeout(limitTimer);
+    if (audio.paused || fullUnlocked || !ready) return;
+    const left = snippetStart + snippetLength() - audio.currentTime;
+    limitTimer = setTimeout(() => { if (!enforceLimit()) armLimit(); }, Math.max(20, left * 1000));
+  }
+  audio.addEventListener('timeupdate', enforceLimit);
+  audio.addEventListener('playing', armLimit);
+  audio.addEventListener('seeked', armLimit);
+  audio.addEventListener('pause', () => clearTimeout(limitTimer));
+  document.addEventListener('visibilitychange', enforceLimit);
+
   audio.addEventListener('play', () => {
     resVideo.pause();                 // jamais deux sons en même temps
     document.dispatchEvent(new CustomEvent('oq:gameaudio'));
     updatePlayBtn();
     cancelAnimationFrame(rafId);
     rafId = requestAnimationFrame(tick);
+    armLimit();
   });
   audio.addEventListener('pause', () => { updatePlayBtn(); refreshSeek(); });
   audio.addEventListener('ended', () => { updatePlayBtn(); refreshSeek(); });
@@ -1300,7 +1332,7 @@
       const ctl = new AbortController();
       const timer = setTimeout(() => ctl.abort(), 25000);
       try {
-        const res = await fetch(url, { signal: ctl.signal });
+        const res = await fetch(LEAD_PROXY ? viaRelay(url, true) : url, { signal: ctl.signal });
         if (!res.ok) throw new Error('HTTP ' + res.status);
         const blob = await res.blob();
         rec.blobUrl = URL.createObjectURL(blob);
@@ -1326,7 +1358,6 @@
    * relais (Cloudflare Worker, voir worker.js) qui renvoie le début du fichier avec l'autorisation nécessaire.
    * Colle ici l'adresse de ton relais, par exemple 'https://opening-proxy.ton-compte.workers.dev/'.
    * Laissée vide, cette fonction est désactivée et le mode Progressif part du début de l'opening comme avant. */
-  const LEAD_PROXY = 'https://opening-proxy.lansorrien.workers.dev/';
   const SOUND_REL = 0.12;          // le son « commence » quand il atteint 12 % du volume habituel de l'opening (≈ -18 dB)
   const SOUND_MIN = 0.004;         // volume minimal absolu (0 à 1), au cas où l'opening est très doux
   const SOUND_WINDOW = 0.01;       // on mesure le volume par tranches de 10 ms
@@ -1371,7 +1402,7 @@
       const ctl = new AbortController();
       const timer = setTimeout(() => ctl.abort(), 8000);
       try {
-        const res = await fetch(LEAD_PROXY + (LEAD_PROXY.indexOf('?') < 0 ? '?' : '&') + 'u=' + encodeURIComponent(url), { signal: ctl.signal });
+        const res = await fetch(viaRelay(url, false), { signal: ctl.signal });
         if (!res.ok) return done(0, 'relais : erreur ' + res.status);
         const buf = await res.arrayBuffer();
         const Ctx = window.OfflineAudioContext || window.webkitOfflineAudioContext;
@@ -1704,18 +1735,12 @@
   }
 
   // À appeler quand le round en cours est lancé : prépare déjà le suivant
-  let warmAudioEl = null;
   function challengePrefetch(spec) {
     if (!spec) return;
     chInfoFor(spec.id).p.then((info) => {
       if (!info) return;
       prepareInfo(info).catch(() => {});
-      try {
-        if (warmAudioEl) warmAudioEl.src = '';
-        warmAudioEl = new Audio();
-        warmAudioEl.preload = 'auto';
-        warmAudioEl.src = info.url;
-      } catch (e) { /* ignoré */ }
+      preloadAudio(info.url);
     }).catch(() => {});
   }
 
