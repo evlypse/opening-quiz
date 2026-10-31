@@ -8,7 +8,7 @@
   <link rel="icon" href="favicon.svg" type="image/svg+xml">
   <link rel="icon" href="favicon-32.png" sizes="32x32" type="image/png">
   <link rel="apple-touch-icon" href="apple-touch-icon.png">
-  <link rel="stylesheet" href="css/style.css?v=20261081">
+  <link rel="stylesheet" href="css/style.css?v=20261084">
 </head>
 <body>
 
@@ -43,6 +43,21 @@
           <button id="tn-medium" class="seg active" type="button" aria-pressed="true">Moyen</button>
           <button id="tn-hard" class="seg active" type="button" aria-pressed="true">Difficile</button>
         </div>
+      </div>
+      <div class="tn-opts">
+        <details id="year-box" class="genre-box">
+          <summary>📅 Années : <span id="year-label">toutes</span></summary>
+          <div class="genre-body">
+            <div class="year-row">
+              <label for="year-min">De</label>
+              <input id="year-min" type="number" min="1960" max="2100" step="1" placeholder="1960" inputmode="numeric">
+              <label for="year-max">à</label>
+              <input id="year-max" type="number" min="1960" max="2100" step="1" placeholder="2026" inputmode="numeric">
+            </div>
+            <p id="year-info" class="lib-info"></p>
+            <button id="year-clear" class="btn secondary mini2" type="button">Toutes les années</button>
+          </div>
+        </details>
       </div>
       <div class="tn-opts">
         <span class="tn-lbl">Qualité vidéo</span>
@@ -127,10 +142,10 @@
 
   </main>
 
-  <script src="js/i18n-data.js?v=20261081"></script>
-  <script src="js/i18n.js?v=20261081"></script>
-  <script src="js/animes.js?v=20261081"></script>
-  <script src="js/overrides.js?v=20261081"></script>
-  <script src="js/tournament.js?v=20261081"></script>
+  <script src="js/i18n-data.js?v=20261084"></script>
+  <script src="js/i18n.js?v=20261084"></script>
+  <script src="js/animes.js?v=20261084"></script>
+  <script src="js/overrides.js?v=20261084"></script>
+  <script src="js/tournament.js?v=20261084"></script>
 </body>
 </html>

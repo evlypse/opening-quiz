@@ -1070,3 +1070,6 @@ body[data-mode="speed"] .answered .seek-row { display: flex !important; }
   .ch-top .lib-song small { white-space: normal; overflow: visible; text-overflow: clip; overflow-wrap: anywhere; }
   .ch-top .lib-song + .btn { margin-left: 42px; }
 }
+
+/* Tournoi : le bloc « Années » prend la largeur utile */
+.tn-opts .genre-box { flex: 1 1 260px; max-width: 420px; }

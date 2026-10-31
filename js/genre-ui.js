@@ -93,8 +93,6 @@
     ymin.addEventListener('change', apply);
     ymax.addEventListener('change', apply);
     $('year-clear').addEventListener('click', () => { ymin.value = ''; ymax.value = ''; apply(); });
-    const y0 = OQ.getYears();
-    if (y0.min || y0.max) ybox.open = true;
     yrender();
   }
 })();

@@ -1266,6 +1266,7 @@
     let sinceSave = 0;
     for (const f of todo) {
       if (f._data !== undefined || f._dead) continue;
+      while (loadingHold > 0) await sleep(500);
       try {
         await resolveCurated(f);
       } catch (err) {
@@ -1657,9 +1658,10 @@
   }
 
   // Tout ce qu'il faut pour un round à partir d'un identifiant d'opening (défis, import d'un défi)
-  async function infoForThemeId(themeId) {
+  async function infoForThemeId(themeId, onUrl) {
     const theme = await fetchTheme(themeId);
     if (!theme || !theme.anime || !usableTheme(theme)) return null;
+    if (onUrl) { const c = candidateFromTheme(theme); if (c && c.url) onUrl(c.url); }   // l'audio peut déjà commencer à charger
     const entry = entryInfo(theme.anime);
     indexEntries([entry]);
     const f = findCurated(entry);
@@ -1678,6 +1680,45 @@
     return infoFromTheme(theme, number, f, { altNumbers: alts, tier });
   }
 
+  // Défis : pendant que l'indexation tourne en arrière-plan, on la met en pause (elle prend la place des requêtes du jeu)
+  let loadingHold = 0;
+  const withTimeout = (promise, ms) => new Promise((resolve, reject) => {
+    const t = setTimeout(() => reject(new Error('délai dépassé')), ms);
+    promise.then((v) => { clearTimeout(t); resolve(v); }, (e) => { clearTimeout(t); reject(e); });
+  });
+
+  // Détails d'un opening de défi, gardés en mémoire (pour pouvoir les préparer pendant le round précédent)
+  const chInfo = new Map();          // identifiant d'opening -> { p: promesse de l'info, urlP: promesse de l'adresse audio }
+  function chInfoFor(themeId) {
+    let ent = chInfo.get(themeId);
+    if (ent) return ent;
+    let giveUrl;
+    const urlP = new Promise((r) => { giveUrl = r; });
+    loadingHold++;
+    const p = infoForThemeId(themeId, giveUrl);
+    p.then(() => { giveUrl(''); }, () => { giveUrl(''); chInfo.delete(themeId); }).then(() => { loadingHold--; });
+    ent = { p, urlP };
+    chInfo.set(themeId, ent);
+    if (chInfo.size > 12) chInfo.delete(chInfo.keys().next().value);
+    return ent;
+  }
+
+  // À appeler quand le round en cours est lancé : prépare déjà le suivant
+  let warmAudioEl = null;
+  function challengePrefetch(spec) {
+    if (!spec) return;
+    chInfoFor(spec.id).p.then((info) => {
+      if (!info) return;
+      prepareInfo(info).catch(() => {});
+      try {
+        if (warmAudioEl) warmAudioEl.src = '';
+        warmAudioEl = new Audio();
+        warmAudioEl.preload = 'auto';
+        warmAudioEl.src = info.url;
+      } catch (e) { /* ignoré */ }
+    }).catch(() => {});
+  }
+
   // Un round de défi : l'opening, le point de départ et la durée sont imposés.
   // Renvoie l'info du round, null (annulé) ou false (opening introuvable / audio impossible).
   async function challengeRound(spec) {
@@ -1685,20 +1726,43 @@
     resetUI();
     applyLength(spec.length, false);
     statusEl.textContent = 'Chargement…';
+    lastFail = '';
+    loadingHold++;
     try {
-      const info = await infoForThemeId(spec.id);
-      if (id !== roundId) return null;
-      if (!info) return false;
-      const [ok] = await Promise.all([prepareAudio(info.url, spec.start), prepareInfo(info)]);
-      if (id !== roundId) return null;
-      if (!ok) return false;
-      info.snippetStart = snippetStart;
-      activateRound(info, null);
-      return info;
-    } catch (err) {
-      console.warn('[Opening Quiz] Défi : opening impossible à charger :', err);
-      return id !== roundId ? null : false;
-    }
+      let audioTries = 0;
+      for (let attempt = 0; attempt < 3; attempt++) {
+        if (attempt) {
+          statusEl.textContent = 'Chargement… (nouvel essai)';
+          await sleep(900 * attempt);
+          if (id !== roundId) return null;
+        }
+        try {
+          const ent = chInfoFor(spec.id);
+          // l'audio démarre dès que l'adresse est connue, pendant qu'on prépare le reste
+          const audioP = ent.urlP.then((u) => (u ? prepareAudio(u, spec.start) : false));
+          const info = await withTimeout(ent.p, 25000);
+          if (id !== roundId) return null;
+          if (!info) { lastFail = 'opening inutilisable'; return false; }
+          const [ok] = await Promise.all([audioP, prepareInfo(info)]);
+          if (id !== roundId) return null;
+          if (!ok) {
+            if (++audioTries >= 2) return false;            // l'audio ne charge pas : un seul nouvel essai
+            const again = await prepareAudio(info.url, spec.start);
+            if (id !== roundId) return null;
+            if (!again) return false;
+          }
+          info.snippetStart = snippetStart;
+          activateRound(info, null);
+          return info;
+        } catch (err) {
+          console.warn('[Opening Quiz] Défi : opening impossible à charger :', err);
+          chInfo.delete(spec.id);
+          if (id !== roundId) return null;
+          if (!lastFail) lastFail = 'erreur de chargement';
+        }
+      }
+      return false;
+    } finally { loadingHold--; }
   }
 
   // Un opening au hasard (utilisé pour remplir un défi) ; null si rien n'a pu être chargé
@@ -2194,7 +2258,7 @@
     nextBtn,
     pauseGame() { audio.pause(); resVideo.pause(); },
     // Défis et genres
-    challengeRound, infoForThemeId, randomOpening,
+    challengeRound, challengePrefetch, getLastFail: () => lastFail, infoForThemeId, randomOpening,
     getLevels: () => LEVELS.filter((l) => levels.has(l)),
     getYears: () => ({ min: yearSel.min, max: yearSel.max }),
     setYears: (min, max) => {

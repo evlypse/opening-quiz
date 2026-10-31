@@ -323,6 +323,41 @@ window.I18N_ROWS = [
 "Aufgeben"
 ],
 [
+"Chargement… (nouvel essai)",
+"Loading… (retrying)",
+"Cargando… (reintentando)",
+"Carregando… (tentando de novo)",
+"Wird geladen… (neuer Versuch)"
+],
+[
+"audio trop lent",
+"audio too slow",
+"audio demasiado lento",
+"áudio muito lento",
+"Audio zu langsam"
+],
+[
+"opening inutilisable",
+"unusable opening",
+"opening inutilizable",
+"opening inutilizável",
+"Opening nicht nutzbar"
+],
+[
+"erreur de chargement",
+"loading error",
+"error de carga",
+"erro de carregamento",
+"Ladefehler"
+],
+[
+"API injoignable",
+"API unreachable",
+"API inaccesible",
+"API inacessível",
+"API nicht erreichbar"
+],
+[
 "Extrait suivant",
 "Next clip",
 "Siguiente fragmento",

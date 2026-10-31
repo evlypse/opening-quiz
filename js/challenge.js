@@ -578,12 +578,14 @@
     const info = await OQ.challengeRound({ id: e[0], start: e[1] / 10, length: e[2] / 10 });
     if (!C || !C.active || C.i !== idx || info === null) return;       // quitté ou remplacé entre-temps
     if (info === false) {
-      C.results.push({ verdict: 'skip', pts: 0, title: '(opening indisponible)', number: 0, song: '' });
+      C.results.push({ verdict: 'skip', pts: 0, title: '(opening indisponible)', number: 0, song: OQ.getLastFail ? OQ.getLastFail() : '' });
       renderBar('Opening indisponible, on passe au suivant…');
       setTimeout(() => { if (C && C.active && C.i === idx) advance(); }, 1300);
       return;
     }
     renderBar();
+    const nxt = C.def.e[idx + 1];                       // prépare déjà l'opening suivant pendant qu'on répond
+    if (nxt && OQ.challengePrefetch) OQ.challengePrefetch({ id: nxt[0] });
   }
 
   function onAnswer(verdict, hints) {

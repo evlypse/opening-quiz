@@ -40,6 +40,39 @@
     });
   });
 
+  /* ---------- Années (même réglage que les autres modes, retenu dans le navigateur) ---------- */
+  const YEAR_KEY = 'opening-quiz-years';
+  const years = { min: 0, max: 0 };
+  try {
+    const p = (localStorage.getItem(YEAR_KEY) || '').split('-').map((x) => parseInt(x, 10));
+    years.min = p[0] > 0 ? p[0] : 0;
+    years.max = p[1] > 0 ? p[1] : 0;
+  } catch (e) { /* ignoré */ }
+  const yearOk = (y) => !y || ((!years.min || y >= years.min) && (!years.max || y <= years.max));
+  (() => {
+    const box = $('year-box');
+    if (!box) return;
+    const ymin = $('year-min'), ymax = $('year-max'), label = $('year-label'), info = $('year-info');
+    const render = () => {
+      label.textContent = years.min && years.max ? years.min + ' – ' + years.max : years.min ? 'depuis ' + years.min : years.max ? 'jusqu\'à ' + years.max : 'toutes';
+      box.classList.toggle('filtering', !!(years.min || years.max));
+      info.textContent = 'Laisse vide pour ne pas limiter. Les difficultés cochées en haut s\'appliquent toujours.';
+      if (document.activeElement !== ymin) ymin.value = years.min || '';
+      if (document.activeElement !== ymax) ymax.value = years.max || '';
+    };
+    const apply = () => {
+      years.min = parseInt(ymin.value, 10) || 0;
+      years.max = parseInt(ymax.value, 10) || 0;
+      if (years.min && years.max && years.min > years.max) { const t = years.min; years.min = years.max; years.max = t; }
+      try { localStorage.setItem(YEAR_KEY, years.min + '-' + years.max); } catch (e) { /* ignoré */ }
+      render();
+    };
+    ymin.addEventListener('change', apply);
+    ymax.addEventListener('change', apply);
+    $('year-clear').addEventListener('click', () => { ymin.value = ''; ymax.value = ''; apply(); });
+    render();
+  })();
+
   /* ---------- Affichage ---------- */
   const views = ['tn-start', 'tn-load', 'tn-match', 'tn-between', 'tn-end'];
   function show(id) { views.forEach((v) => $(v).classList.toggle('hidden', v !== id)); window.scrollTo(0, 0); }
@@ -63,20 +96,22 @@
     return null;
   }
 
+  // Un opening (OP) utilisable : ses vidéos, son audio ; null s'il est exclu ou sans média
+  function themeOption(t) {
+    if (!t || t.type !== 'OP' || OV_EXCLUDED.has(Number(t.id)) || (t.group && BAD_GROUP.test(t.group))) return null;
+    const vids = [];
+    let audio = null;
+    // Toutes les versions vidéo, de la plus « propre » à la moins : non NSFW d'abord, sans crédits d'abord
+    // (les versions NSFW sont gardées en dernier recours, comme sur le site de base)
+    (t.animethemeentries || []).forEach((e) => (e.videos || []).forEach((v) => {
+      if (v.link) vids.push({ url: v.link, rank: (e.nsfw ? 2 : 0) + (v.nc ? 0 : 1), res: Number(v.resolution) || 0, size: Number(v.size) || 0 });
+      if (!audio && v.audio && v.audio.link) audio = v.audio.link;
+    }));
+    return vids.length || audio ? { t, vids, audioUrl: audio, hasVideo: vids.length > 0 } : null;
+  }
+
   function pickTheme(anime) {
-    const ok = [];
-    (anime.animethemes || []).forEach((t) => {
-      if (t.type !== 'OP' || OV_EXCLUDED.has(Number(t.id)) || (t.group && BAD_GROUP.test(t.group))) return;
-      const vids = [];
-      let audio = null;
-      // Toutes les versions vidéo, de la plus « propre » à la moins : non NSFW d'abord, sans crédits d'abord
-      // (les versions NSFW sont gardées en dernier recours, comme sur le site de base)
-      (t.animethemeentries || []).forEach((e) => (e.videos || []).forEach((v) => {
-        if (v.link) vids.push({ url: v.link, rank: (e.nsfw ? 2 : 0) + (v.nc ? 0 : 1), res: Number(v.resolution) || 0, size: Number(v.size) || 0 });
-        if (!audio && v.audio && v.audio.link) audio = v.audio.link;
-      }));
-      if (vids.length || audio) ok.push({ t, vids, audioUrl: audio, hasVideo: vids.length > 0 });
-    });
+    const ok = (anime.animethemes || []).map(themeOption).filter(Boolean);
     return ok.length ? ok[Math.floor(Math.random() * ok.length)] : null;
   }
 
@@ -302,15 +337,125 @@
 
   const HEAD = 0.25;         // part de chaque vidéo téléchargée avant de commencer (le début)
   const PREP = 4;            // nombre d'openings téléchargés avant de commencer (les 2 premiers duels)
-  let order = [], cursor = 0;   // animes tirés au sort et position dans la liste
   let slots = [];            // les 16 places du premier tour, remplies au fur et à mesure du chargement
   let loaderDone = false;
 
+  /* ---------- Tirage au sort ---------- */
+  // Facile / Moyen : les animes de la liste (js/animes.js). Difficile : tout le reste du catalogue AnimeThemes,
+  // tiré au hasard (comme dans le jeu principal). Une difficulté « difficile » pèse 3 fois plus qu'une autre :
+  // le catalogue difficile est de très loin le plus grand.
+  const WEIGHT = { easy: 1, medium: 1, hard: 3 };
+  const FALLBACK_TOTAL = 1000;
+  let totalOPs = 0;
+  let yearApi = true;                 // false si l'API refuse le filtre d'année
+  const yearTotals = {};              // année -> nombre d'animes de cette année
+
+  const lastPage = (data) => {
+    const last = data.links && data.links.last;
+    const m = last && /page(?:\[number\]|%5Bnumber%5D)=(\d+)/i.exec(last);
+    if (m) return Number(m[1]);
+    if (data.meta && data.meta.last_page) return Number(data.meta.last_page);
+    if (data.meta && data.meta.total) return Number(data.meta.total);
+    return 0;
+  };
+
+  async function getJson(url) {
+    const res = await fetch(url);
+    if (res.status === 429) { await sleep(1500); throw new Error('429'); }
+    if (res.status === 400 || res.status === 422) return { bad: true };
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    return res.json();
+  }
+
+  const INCS = ['anime,animethemeentries.videos.audio,song.artists', 'anime,animethemeentries.videos.audio,song'];
+
+  // Un opening au hasard dans tout le catalogue
+  async function randomCatalogTheme() {
+    if (!totalOPs) {
+      try { totalOPs = lastPage(await getJson(`${API}/animetheme?filter[type]=OP&page[size]=1`)) || FALLBACK_TOTAL; } catch (e) { totalOPs = FALLBACK_TOTAL; }
+    }
+    const n = 1 + Math.floor(Math.random() * totalOPs);
+    for (const inc of INCS) {
+      const data = await getJson(`${API}/animetheme?filter[type]=OP&page[size]=1&page[number]=${n}&include=${encodeURIComponent(inc)}`);
+      if (data.bad) continue;
+      const t = (data.animethemes || [])[0];
+      return t && t.anime ? { anime: t.anime, option: themeOption(t) } : null;
+    }
+    return null;
+  }
+
+  // Un anime au hasard parmi ceux d'une année (avec tous ses openings)
+  async function randomAnimeOfYear(y) {
+    const incs = ['animethemes.animethemeentries.videos.audio,animethemes.song.artists', 'animethemes.animethemeentries.videos.audio,animethemes.song'];
+    if (yearTotals[y] === undefined) {
+      const data = await getJson(`${API}/anime?filter[year]=${y}&page[size]=1`);
+      if (data.bad) { yearApi = false; return null; }
+      yearTotals[y] = lastPage(data) || ((data.anime || []).length ? 1 : 0);
+    }
+    if (!yearTotals[y]) return null;
+    const n = 1 + Math.floor(Math.random() * yearTotals[y]);
+    for (const inc of incs) {
+      const data = await getJson(`${API}/anime?filter[year]=${y}&page[size]=1&page[number]=${n}&include=${encodeURIComponent(inc)}`);
+      if (data.bad) continue;
+      return (data.anime || [])[0] || null;
+    }
+    return null;
+  }
+
+  function makeSource() {
+    const pool = usablePool();
+    const queues = { easy: shuffle(pool.filter((f) => f.tier === 'easy')), medium: shuffle(pool.filter((f) => f.tier === 'medium')) };
+    const curated = new Set(POOL.map((f) => f.slug));
+    const used = new Set();
+    const bag = [];
+    LEVELS.forEach((l) => { if (levels.has(l)) for (let k = 0; k < WEIGHT[l]; k++) bag.push(l); });
+    const thisYear = new Date().getFullYear() + 1;
+    return {
+      // Renvoie { title, tier, c } ; undefined = rien de bon cette fois (on réessaie) ; null = plus rien à tirer
+      async next() {
+        const live = bag.filter((l) => l === 'hard' || (queues[l] && queues[l].length));
+        if (!live.length) return null;
+        const level = live[Math.floor(Math.random() * live.length)];
+        if (level === 'hard') {
+          let anime = null, c = null;
+          if ((years.min || years.max) && yearApi) {
+            const lo = years.min || 1960, hi = years.max || thisYear;
+            anime = await randomAnimeOfYear(lo + Math.floor(Math.random() * (hi - lo + 1)));
+            c = anime ? pickTheme(anime) : null;
+          } else {
+            const r = await randomCatalogTheme();
+            anime = r && r.anime;
+            c = r && r.option;
+          }
+          if (!anime || !c || curated.has(anime.slug) || OV_EXCLUDED_ANIMES.has(anime.slug) || used.has(anime.slug) || !yearOk(anime.year)) return undefined;
+          used.add(anime.slug);
+          return { title: anime.name || anime.slug, tier: 'hard', c };
+        }
+        const f = queues[level].shift();
+        const anime = await fetchAnime(f.slug);
+        if (!anime || !yearOk(anime.year)) return undefined;
+        const c = pickTheme(anime);
+        return c ? { title: f.title, tier: f.tier, c } : undefined;
+      }
+    };
+  }
+
+  let source = null;
+
+  function itemFrom(cand) {
+    const c = cand.c;
+    const song = c.t.song || null;
+    const artists = song && Array.isArray(song.artists) ? song.artists.map((x) => x.name).filter(Boolean) : [];
+    const m = /(\d+)/.exec(c.t.slug || '');
+    const item = { anime: cand.title, tier: cand.tier, song: song ? song.title : '', artists, num: m ? Number(m[1]) : 1, vids: c.vids, audioUrl: c.audioUrl, urls: [], ui: 0, audio: null };
+    item.urls = urlsFor(item, quality);
+    return item;
+  }
+
   function startLoader(id) {
     loaderDone = false;
-    order = shuffle(usablePool());
-    cursor = 0;
-    let fails = 0, got = 0, inflight = 0;
+    source = makeSource();
+    let fails = 0, got = 0, inflight = 0, noVideo = 0, misses = 0;
     const setProgress = () => {
       $('tn-load-text').textContent = 'Préparation des openings… ' + Math.min(got, SIZE - 1) + ' / ' + SIZE;   // le dernier se valide quand le 1er duel est prêt
       $('tn-load-bar').style.width = Math.round(Math.min(got, SIZE - 1) / SIZE * 100) + '%';
@@ -320,21 +465,16 @@
       while (id === runId) {
         if (got >= SIZE) return;
         if (got + inflight >= SIZE) { await sleep(200); continue; }          // les autres s'en occupent
-        if (cursor >= order.length || fails > 80) return;
-        const f = order[cursor++];
+        if (fails > 80 || misses > 400) return;
         inflight++;
         try {
-          const anime = await fetchAnime(f.slug);
+          const cand = await source.next();
           if (id !== runId) return;
-          const c = anime ? pickTheme(anime) : null;
-          if (!c) continue;
-          // Pas de vidéo : on préfère un autre anime, sauf si on en manque
-          if (!c.hasVideo && cursor < order.length - 25) continue;
-          const song = c.t.song || null;
-          const artists = song && Array.isArray(song.artists) ? song.artists.map((x) => x.name).filter(Boolean) : [];
-          const m = /(\d+)/.exec(c.t.slug || '');
-          const item = { anime: f.title, tier: f.tier, song: song ? song.title : '', artists, num: m ? Number(m[1]) : 1, vids: c.vids, audioUrl: c.audioUrl, urls: [], ui: 0, audio: null };
-          item.urls = urlsFor(item, quality);
+          if (cand === null) return;
+          if (!cand) { misses++; continue; }
+          // Pas de vidéo : on préfère un autre opening, sauf si on en manque
+          if (!cand.c.hasVideo && ++noVideo < 25) continue;
+          const item = itemFrom(cand);
           slots[got++] = item;
           items.push(item);
           if (got <= 2) ensure(item);                                         // les deux premiers : on commence tout de suite
@@ -347,20 +487,14 @@
   }
 
 
-  // Remplace un opening impossible à télécharger par un autre anime
+  // Remplace un opening impossible à télécharger par un autre
   async function drawReplacement(id) {
-    while (id === runId && cursor < order.length) {
-      const f = order[cursor++];
+    for (let k = 0; id === runId && k < 60; k++) {
       try {
-        const anime = await fetchAnime(f.slug);
-        const c = anime ? pickTheme(anime) : null;
-        if (!c || !c.hasVideo) continue;
-        const song = c.t.song || null;
-        const artists = song && Array.isArray(song.artists) ? song.artists.map((x) => x.name).filter(Boolean) : [];
-        const m = /(\d+)/.exec(c.t.slug || '');
-        const item = { anime: f.title, tier: f.tier, song: song ? song.title : '', artists, num: m ? Number(m[1]) : 1, vids: c.vids, audioUrl: c.audioUrl, urls: [], ui: 0, audio: null };
-        item.urls = urlsFor(item, quality);
-        return item;
+        const cand = await source.next();
+        if (cand === null) return null;
+        if (!cand || !cand.c.hasVideo) continue;
+        return itemFrom(cand);
       } catch (e) { await sleep(300); }
     }
     return null;
@@ -602,7 +736,7 @@
     const id = ++runId;
     stopAll();
     $('tn-start-msg').textContent = '';
-    if (usablePool().length < SIZE) { $('tn-start-msg').textContent = 'Pas assez d\'animes avec ces difficultés : coches-en d\'autres.'; return; }
+    if (!levels.has('hard') && usablePool().length < SIZE) { $('tn-start-msg').textContent = 'Pas assez d\'animes avec ces difficultés : coches-en d\'autres.'; return; }
     items.forEach(release);
     items = [];
     slots = new Array(SIZE);
