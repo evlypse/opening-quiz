@@ -30,10 +30,10 @@
   // Variantes de "include" : si l'API en refuse une, on passe à la suivante (moins riche).
   const INC = {
     theme: ['anime,animethemeentries.videos.audio,song.artists', 'anime,animethemeentries.videos.audio,song'],
-    members: ['animethemes.song,animesynonyms', 'animethemes.song', 'animethemes'],   // saisons d'une franchise
+    members: ['animethemes.song,animesynonyms', 'animethemes.song,synonyms', 'animethemes.song', 'animethemes'],   // saisons d'une franchise
     search: ['animesynonyms', ''],                                                    // suggestions de la recherche
-    detail: ['resources,images,animesynonyms', 'resources,images', 'resources', ''],  // lien MAL, couverture, noms anglais
-    lib: ['animethemes.song.artists,animesynonyms', 'animethemes.song', 'animethemes'] // bibliothèque
+    detail: ['resources,images,animesynonyms', 'resources,images,synonyms', 'resources,images', 'resources', ''],  // lien MAL, couverture, noms anglais
+    lib: ['animethemes.song.artists,animesynonyms', 'animethemes.song.artists,synonyms', 'animethemes.song', 'animethemes'] // bibliothèque
   };
   const incLevel = { theme: 0, members: 0, search: 0, detail: 0, lib: 0 };
 
@@ -98,7 +98,7 @@
 
   // Mode « extraits éclair » (speed.html) : on part toujours du début de l'opening, et chaque erreur débloque un extrait plus long
   const SPEED = document.body.dataset.mode === 'speed';
-  const STEPS = [0.1, 0.5, 1, 3, 10];          // durées successives de l'extrait (secondes)
+  const STEPS = [0.2, 0.8, 2, 5, 20];          // durées successives de l'extrait (secondes)
   const STEP_POINTS = [5, 4, 3, 2, 1];          // points gagnés selon l'extrait où on trouve
   const stagesEl = $('stages');
   const scoreEl = $('speed-score');
@@ -568,10 +568,14 @@
     playBtn.textContent = audio.paused ? '▶ Écouter' : '⏸ Pause';
   }
 
+  // L'ordre de pause met un court instant à couper le son (surtout au tout premier lancement) : on le donne un peu avant la fin
+  const STOP_LEAD = 0.06;                                    // secondes (réduit pour les très courts extraits)
+  const stopAt = () => { const len = snippetLength(); return snippetStart + len - Math.min(STOP_LEAD, len * 0.25); };
+
   function tick() {
     if (audio.paused) return;
     const end = snippetStart + snippetLength();
-    if (!fullUnlocked && audio.currentTime >= end) {
+    if (!fullUnlocked && audio.currentTime >= stopAt()) {
       audio.pause();
       audio.currentTime = end;
       refreshSeek();
@@ -588,7 +592,7 @@
   function enforceLimit() {
     if (audio.paused || fullUnlocked || !ready) return false;
     const end = snippetStart + snippetLength();
-    if (audio.currentTime < end) return false;
+    if (audio.currentTime < stopAt()) return false;
     audio.pause();
     audio.currentTime = end;
     refreshSeek();
@@ -598,7 +602,7 @@
   function armLimit() {
     clearTimeout(limitTimer);
     if (audio.paused || fullUnlocked || !ready) return;
-    const left = snippetStart + snippetLength() - audio.currentTime;
+    const left = stopAt() - audio.currentTime;
     limitTimer = setTimeout(() => { if (!enforceLimit()) armLimit(); }, Math.max(20, left * 1000));
   }
   audio.addEventListener('timeupdate', enforceLimit);
@@ -709,10 +713,18 @@
     return null;
   }
 
+  const synsOf = (a) => (a && (a.animesynonyms || a.synonyms)) || [];
+
   function pickEnglish(syns) {
     if (!Array.isArray(syns)) return '';
-    const e = syns.find((s) => s && s.text && /english|^2$/i.test(String(s.type)));
-    return e ? e.text : '';
+    const typeOf = (s) => String(s.type).toLowerCase();
+    const e = syns.find((s) => s && s.text && /english|^2$/.test(typeOf(s)));
+    if (e) return e.text;
+    // Pas de synonyme marqué « English » : AnimeThemes demande de mettre le titre anglais en premier synonyme.
+    // On prend donc le premier synonyme « Other » écrit en alphabet latin (ni sigle court, ni japonais).
+    const latin = (t) => /^[\x20-\x7E\u00C0-\u024F\u2018-\u201F]+$/.test(t);
+    const o = syns.find((s) => s && s.text && /other|^0$/.test(typeOf(s)) && latin(s.text) && s.text.length >= 4 && !/^[A-Z0-9 !?:.\-]{2,8}$/.test(s.text));
+    return o ? o.text : '';
   }
 
   function entryInfo(a) {
@@ -723,7 +735,7 @@
       year: a.year || 0,
       season: a.season || '',
       format: String(a.media_format || '').toLowerCase(),
-      english: pickEnglish(a.animesynonyms),
+      english: pickEnglish(synsOf(a)),
       themes: Array.isArray(a.animethemes) ? a.animethemes : []
     };
   }
@@ -927,7 +939,7 @@
           malId,
           malUrl: r ? (r.link || (malId ? `https://myanimelist.net/anime/${malId}` : '')) : '',
           cover: pickCover(a.images),
-          english: pickEnglish(a.animesynonyms)
+          english: pickEnglish(synsOf(a))
         };
       }
     } catch (err) {
@@ -981,7 +993,7 @@
     const cand = candidateFromTheme(theme);
     if (!cand) return null;
     const a = theme.anime || {};
-    const english = pickEnglish(a.animesynonyms);
+    const english = pickEnglish(synsOf(a));
     const title = f ? f.title : cleanTitle(english || a.name || '');
     const keys = new Set([...(f ? f.keys : []), keyOf(a.name), english ? keyOf(english) : null].filter(Boolean));
 
@@ -1901,6 +1913,31 @@
     return [...curated, ...extra].slice(0, 9);
   }
 
+  // Réglage de la recherche en ligne, retenu d'une visite à l'autre : si l'API refuse le filtre « has » ou l'include
+  // des synonymes, on le découvre une seule fois (et plus à chaque recherche).
+  const SEARCH_INCS = ['animesynonyms', 'synonyms', ''];
+  const searchCfg = (() => {
+    try { const c = JSON.parse(store.get('opening-quiz-searchcfg-v1', '{}')); return { has: c.has !== false, inc: Math.min(Math.max(Number(c.inc) || 0, 0), SEARCH_INCS.length - 1) }; }
+    catch (e) { return { has: true, inc: 0 }; }
+  })();
+
+  async function searchRequest(q, signal) {
+    for (let attempt = 0; attempt < 4; attempt++) {
+      const params = { q, 'page[size]': 12 };
+      if (searchCfg.has) params['filter[has]'] = 'animethemes';
+      if (SEARCH_INCS[searchCfg.inc]) params.include = SEARCH_INCS[searchCfg.inc];
+      const res = await apiFetch('/anime', params, signal);
+      if (res.status !== 400 && res.status !== 422) return res;
+      if (searchCfg.has) searchCfg.has = false;                    // refusé : on teste d'abord sans le filtre…
+      else if (searchCfg.inc < SEARCH_INCS.length - 1) searchCfg.inc++;   // …puis avec une autre écriture des synonymes
+      else return res;
+      store.set('opening-quiz-searchcfg-v1', JSON.stringify(searchCfg));
+    }
+    return null;
+  }
+
+  let searching = false;             // une recherche en ligne est en cours (affiche « Recherche… »)
+
   async function remoteSearch(query, seq) {
     const qn = norm(query);
     if (remoteCache.has(qn)) { mergeSuggestions(remoteCache.get(qn)); return; }
@@ -1909,15 +1946,11 @@
     searchAbort = new AbortController();
     const signal = searchAbort.signal;
 
+    loadingHold++;                   // l'indexation de fond se met en pause : elle ralentirait la recherche
+    searching = true;
+    renderSuggestions();
     try {
-      let res = await fetchVariants('search', '/anime', {
-        q: query,
-        'page[size]': 12,
-        'filter[has]': 'animethemes'
-      }, signal);
-      if (res && (res.status === 400 || res.status === 422)) {
-        res = await fetchVariants('search', '/anime', { q: query, 'page[size]': 12 }, signal);
-      }
+      const res = await searchRequest(query, signal);
       if (!res || !res.ok) return;
 
       const entries = ((await res.json()).anime || []).map(entryInfo);
@@ -1930,11 +1963,18 @@
       mergeSuggestions(groups);
     } catch (err) {
       if (err.name !== 'AbortError') console.warn('[Opening Quiz] Recherche impossible :', err);
+    } finally {
+      loadingHold--;
+      if (seq === searchSeq) { searching = false; renderSuggestions(); }
     }
   }
 
   function mergeSuggestions(remote) {
-    const base = suggestions.filter((s) => s.local);
+    const base = suggestions.filter((s) => s.local).map((b) => {
+      if (ANIMES.includes(b)) return b;                     // les animes de la liste gardent leur titre
+      const r = remote.find((x) => b.keys.some((k) => x.keys.includes(k)));
+      return r && r.title !== b.title ? { ...b, title: r.title } : b;   // un nom plus récent (anglais) remplace l'ancien
+    });
     const extras = remote.filter((r) => !base.some((b) => b.keys.some((k) => r.keys.includes(k))));
     suggestions = [...base, ...extras].slice(0, 10);
     if (activeIndex < 0 || activeIndex >= suggestions.length) activeIndex = suggestions.length ? 0 : -1;
@@ -1955,7 +1995,14 @@
       });
       suggestionsEl.appendChild(li);
     });
-    const open = suggestions.length > 0;
+    if (searching) {
+      const li = document.createElement('li');
+      li.textContent = 'Recherche…';
+      li.className = 'searching';
+      li.setAttribute('aria-disabled', 'true');
+      suggestionsEl.appendChild(li);
+    }
+    const open = suggestions.length > 0 || searching;
     suggestionsEl.classList.toggle('hidden', !open);
     animeInput.setAttribute('aria-expanded', String(open));
   }
@@ -1973,6 +2020,7 @@
     animeInput.value = anime.title;
     answerMsg.textContent = '';
     searchSeq++;                                    // annule les recherches en cours
+    searching = false;
     clearTimeout(searchTimer);
     closeSuggestions();
   }

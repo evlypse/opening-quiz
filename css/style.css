@@ -1073,3 +1073,6 @@ body[data-mode="speed"] .answered .seek-row { display: flex !important; }
 
 /* Tournoi : le bloc « Années » prend la largeur utile */
 .tn-opts .genre-box { flex: 1 1 260px; max-width: 420px; }
+
+/* Suggestions : message d'attente */
+.suggestions li.searching { color: var(--g500); font-style: italic; cursor: default; pointer-events: none; }
