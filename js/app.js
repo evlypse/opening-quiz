@@ -687,8 +687,10 @@
       .map(([k, v]) => `${k}=${encodeURIComponent(v)}`)
       .join('&');
     let res;
+    const t0 = Date.now();
     try { res = await fetch(`${API}${path}${qs ? '?' + qs : ''}`, { signal }); }
     catch (e) { if (e && e.name !== 'AbortError') lastFail = 'API injoignable'; throw e; }
+    if (Date.now() - t0 > 3000) console.warn('[Opening Quiz] Requête lente (' + ((Date.now() - t0) / 1000).toFixed(1) + ' s) :', path, res.status);
     if (!res.ok && res.status !== 400 && res.status !== 422) lastFail = 'API ' + res.status;
     if (res.status === 429) {          // trop de requêtes : on laisse souffler l'API
       await sleep(1500);
@@ -1347,6 +1349,8 @@
         const res = await fetch(LEAD_PROXY ? viaRelay(url, true) : url, { signal: ctl.signal });
         if (!res.ok) throw new Error('HTTP ' + res.status);
         const blob = await res.blob();
+        // L'ancien relais ne renvoie que le début du fichier (≈ 20 s) : on ne s'en sert jamais comme opening complet
+        if (LEAD_PROXY && blob.size <= 330000) throw new Error('fichier partiel');
         rec.blobUrl = URL.createObjectURL(blob);
         return rec.blobUrl;
       } catch (e) {
@@ -1370,6 +1374,8 @@
    * relais (Cloudflare Worker, voir worker.js) qui renvoie le début du fichier avec l'autorisation nécessaire.
    * Colle ici l'adresse de ton relais, par exemple 'https://opening-proxy.ton-compte.workers.dev/'.
    * Laissée vide, cette fonction est désactivée et le mode Progressif part du début de l'opening comme avant. */
+  const DEBUG_LEAD = /[?&]debug\b/.test(location.search);   // speed.html?debug : affiche le départ trouvé dans la correction
+  const leadText = new Map();
   const SOUND_REL = 0.12;          // le son « commence » quand il atteint 12 % du volume habituel de l'opening (≈ -18 dB)
   const SOUND_MIN = 0.004;         // volume minimal absolu (0 à 1), au cas où l'opening est très doux
   const SOUND_WINDOW = 0.01;       // on mesure le volume par tranches de 10 ms
@@ -1438,11 +1444,12 @@
 
   async function prepareAudio(url, forcedStart) {
     const leadReq = SPEED && LEAD_PROXY ? audioLead(url) : null;
-    const local = await Promise.race([fetchAudioBlob(url), sleep(10000).then(() => '')]);
+    const local = await Promise.race([fetchAudioBlob(url), sleep(5000).then(() => '')]);
     let lead = 0;
     if (leadReq) {
       const res = await Promise.race([leadReq, sleep(9000).then(() => ({ lead: 0, note: 'relais trop lent' }))]);
       lead = res.lead;
+      leadText.set(url, lead.toFixed(2).replace('.', ',') + ' s (' + res.note + ') · fichier ' + (local ? 'complet' : 'lu en direct'));
     }
     return new Promise((resolve) => {
       let finished = false;
@@ -1461,7 +1468,7 @@
 
         // Point de départ aléatoire, n'importe où dans l'opening (avec la place pour tout l'extrait)
         const maxStart = Number.isFinite(d) ? Math.max(0, d - snippetSeconds - 0.5) : 30;
-        snippetStart = SPEED ? Math.min(lead, Math.max(0, (Number.isFinite(d) ? d : 30) - STEPS[STEPS.length - 1] - 0.5)) : typeof forcedStart === 'number' ? Math.min(Math.max(0, forcedStart), maxStart) : Math.random() * maxStart;
+        snippetStart = SPEED ? Math.min(lead, Math.max(0, (Number.isFinite(d) ? d : 30) - 1)) : typeof forcedStart === 'number' ? Math.min(Math.max(0, forcedStart), maxStart) : Math.random() * maxStart;
         finish(true);
       };
       const onError = () => { lastFail = 'audio ' + (audio.error ? 'code ' + audio.error.code : 'illisible'); finish(false); };
@@ -1937,6 +1944,7 @@
   }
 
   let searching = false;             // une recherche en ligne est en cours (affiche « Recherche… »)
+  let searchDiag = '';               // ligne de diagnostic TEMPORAIRE affichée sous les suggestions
 
   async function remoteSearch(query, seq) {
     const qn = norm(query);
@@ -1949,11 +1957,17 @@
     loadingHold++;                   // l'indexation de fond se met en pause : elle ralentirait la recherche
     searching = true;
     renderSuggestions();
+    const tSearch = Date.now();
+    searchDiag = '';
     try {
       const res = await searchRequest(query, signal);
-      if (!res || !res.ok) return;
+      if (!res || !res.ok) { searchDiag = 'diag : ' + ((Date.now() - tSearch) / 1000).toFixed(1) + ' s · réponse ' + (res ? res.status : 'aucune'); return; }
 
-      const entries = ((await res.json()).anime || []).map(entryInfo);
+      const raw = (await res.json()).anime || [];
+      searchDiag = 'diag : ' + ((Date.now() - tSearch) / 1000).toFixed(1) + ' s · include=' + (SEARCH_INCS[searchCfg.inc] || 'aucun') + ' · filtre has=' + searchCfg.has
+        + ' · clés reçues : ' + (raw[0] ? Object.keys(raw[0]).join(',') : '-')
+        + ' · synonymes : ' + raw.slice(0, 4).map((a) => String(a.name || '').slice(0, 14) + '=' + synsOf(a).length + (synsOf(a)[0] ? '[' + String(synsOf(a)[0].type) + ']' : '')).join(' | ');
+      const entries = raw.map(entryInfo);
       indexEntries(entries);
       const groups = groupRemote(entries);
       remoteCache.set(qn, groups);
@@ -1995,6 +2009,14 @@
       });
       suggestionsEl.appendChild(li);
     });
+    if (searchDiag && !searching) {
+      const d = document.createElement('li');
+      d.textContent = searchDiag;
+      d.className = 'searching';
+      d.setAttribute('data-no-i18n', '');
+      d.style.fontSize = '0.7rem';
+      suggestionsEl.appendChild(d);
+    }
     if (searching) {
       const li = document.createElement('li');
       li.textContent = 'Recherche…';
@@ -2002,7 +2024,7 @@
       li.setAttribute('aria-disabled', 'true');
       suggestionsEl.appendChild(li);
     }
-    const open = suggestions.length > 0 || searching;
+    const open = suggestions.length > 0 || searching || !!searchDiag;
     suggestionsEl.classList.toggle('hidden', !open);
     animeInput.setAttribute('aria-expanded', String(open));
   }
@@ -2021,6 +2043,7 @@
     answerMsg.textContent = '';
     searchSeq++;                                    // annule les recherches en cours
     searching = false;
+    searchDiag = '';
     clearTimeout(searchTimer);
     closeSuggestions();
   }
@@ -2143,6 +2166,7 @@
     if (date) addDetail('Sortie', date);
     if (SPEED) {
       if (lastVerdict.cls === 'correct') addDetail('Trouvé à', fmtStep(STEPS[lastVerdict.stage]));
+      if (SPEED && DEBUG_LEAD) addDetail('Début du son', leadText.get(round.url) || 'non analysé');
       addDetail('Points', String(lastVerdict.points || 0));
     }
     const diff = addDetail('Difficulté', '');
