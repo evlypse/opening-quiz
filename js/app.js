@@ -8,7 +8,12 @@
   // Relais Cloudflare (worker.js) : AnimeThemes interdit à un autre site de lire ses fichiers audio ; le relais les renvoie
   // avec l'autorisation nécessaire. Sert (1) à garder l'audio en mémoire (lecture instantanée), (2) à trouver le premier son.
   // Laissé vide : le site lit l'audio directement, avec un temps d'attente plus long au démarrage.
-  const LEAD_PROXY = 'https://opening-proxy.lansorrien.workers.dev/';
+  const LEAD_PROXY = /[?&]norelay\b/.test(location.search) ? '' : 'https://opening-proxy.lansorrien.workers.dev/';   // ?norelay dans l'adresse : relais coupé (test)
+  // Disjoncteur : si le relais échoue ou répond trop lentement deux fois de suite, on s'en passe pendant 5 minutes
+  let relayFails = 0, relayDownUntil = 0;
+  const relayUp = () => !!LEAD_PROXY && Date.now() > relayDownUntil;
+  const relayFailed = () => { if (++relayFails >= 2) { relayFails = 0; relayDownUntil = Date.now() + 5 * 60 * 1000; } };
+  const relayWorked = () => { relayFails = 0; };
   const viaRelay = (u, full) => LEAD_PROXY + (LEAD_PROXY.indexOf('?') < 0 ? '?' : '&') + 'u=' + encodeURIComponent(u) + (full ? '&full=1' : '');
   const DEFAULT_LENGTH = 5;       // durée par défaut de l'extrait (secondes)
   const MIN_LENGTH = 0.1;
@@ -1345,15 +1350,18 @@
     rec.promise = (async () => {
       const ctl = new AbortController();
       const timer = setTimeout(() => ctl.abort(), 25000);
+      const viaProxy = relayUp();
       try {
-        const res = await fetch(LEAD_PROXY ? viaRelay(url, true) : url, { signal: ctl.signal });
+        const res = await fetch(viaProxy ? viaRelay(url, true) : url, { signal: ctl.signal });
         if (!res.ok) throw new Error('HTTP ' + res.status);
         const blob = await res.blob();
         // L'ancien relais ne renvoie que le début du fichier (≈ 20 s) : on ne s'en sert jamais comme opening complet
-        if (LEAD_PROXY && blob.size <= 330000) throw new Error('fichier partiel');
+        if (viaProxy && blob.size <= 330000) throw new Error('fichier partiel');
         rec.blobUrl = URL.createObjectURL(blob);
+        if (viaProxy) relayWorked();
         return rec.blobUrl;
       } catch (e) {
+        if (viaProxy) relayFailed();
         return '';
       } finally { clearTimeout(timer); }
     })();
@@ -1421,7 +1429,8 @@
       const timer = setTimeout(() => ctl.abort(), 8000);
       try {
         const res = await fetch(viaRelay(url, false), { signal: ctl.signal });
-        if (!res.ok) return done(0, 'relais : erreur ' + res.status);
+        if (!res.ok) { relayFailed(); return done(0, 'relais : erreur ' + res.status); }
+        relayWorked();
         const buf = await res.arrayBuffer();
         const Ctx = window.OfflineAudioContext || window.webkitOfflineAudioContext;
         if (!Ctx) return done(0, 'analyse non disponible sur ce navigateur');
@@ -1435,6 +1444,7 @@
         const t = findFirstSound(chans, data.sampleRate);
         return t < 0 ? done(0, 'aucun son trouvé') : done(t, 'son trouvé');
       } catch (e) {
+        relayFailed();
         return done(0, 'analyse impossible : ' + (e && e.message ? e.message : e));
       } finally { clearTimeout(timer); }
     })();
@@ -1443,11 +1453,11 @@
   }
 
   async function prepareAudio(url, forcedStart) {
-    const leadReq = SPEED && LEAD_PROXY ? audioLead(url) : null;
-    const local = await Promise.race([fetchAudioBlob(url), sleep(5000).then(() => '')]);
+    const leadReq = SPEED && relayUp() ? audioLead(url) : null;
+    const local = await Promise.race([fetchAudioBlob(url), sleep(5000).then(() => { relayFailed(); return ''; })]);
     let lead = 0;
     if (leadReq) {
-      const res = await Promise.race([leadReq, sleep(9000).then(() => ({ lead: 0, note: 'relais trop lent' }))]);
+      const res = await Promise.race([leadReq, sleep(6000).then(() => { relayFailed(); return { lead: 0, note: 'relais trop lent' }; })]);
       lead = res.lead;
       leadText.set(url, lead.toFixed(2).replace('.', ',') + ' s (' + res.note + ') · fichier ' + (local ? 'complet' : 'lu en direct'));
     }
