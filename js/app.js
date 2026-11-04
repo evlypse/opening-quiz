@@ -9,11 +9,18 @@
   // avec l'autorisation nécessaire. Sert (1) à garder l'audio en mémoire (lecture instantanée), (2) à trouver le premier son.
   // Laissé vide : le site lit l'audio directement, avec un temps d'attente plus long au démarrage.
   const LEAD_PROXY = /[?&]norelay\b/.test(location.search) ? '' : 'https://opening-proxy.lansorrien.workers.dev/';   // ?norelay dans l'adresse : relais coupé (test)
-  // Disjoncteur : si le relais échoue ou répond trop lentement deux fois de suite, on s'en passe pendant 5 minutes
-  let relayFails = 0, relayDownUntil = 0;
-  const relayUp = () => !!LEAD_PROXY && Date.now() > relayDownUntil;
-  const relayFailed = () => { if (++relayFails >= 2) { relayFails = 0; relayDownUntil = Date.now() + 5 * 60 * 1000; } };
-  const relayWorked = () => { relayFails = 0; };
+  // Disjoncteurs : si le relais renvoie 3 erreurs de suite, on s'en passe 2 minutes. Un pour le fichier entier, un pour le
+  // premier son (l'un ne coupe pas l'autre). La simple lenteur ne compte pas comme une erreur.
+  const mkBreaker = () => {
+    let fails = 0, until = 0;
+    return {
+      up: () => !!LEAD_PROXY && Date.now() > until,
+      fail: () => { if (++fails >= 3) { fails = 0; until = Date.now() + 2 * 60 * 1000; } },
+      ok: () => { fails = 0; }
+    };
+  };
+  const blobRelay = mkBreaker();
+  const leadRelay = mkBreaker();
   const viaRelay = (u, full) => LEAD_PROXY + (LEAD_PROXY.indexOf('?') < 0 ? '?' : '&') + 'u=' + encodeURIComponent(u) + (full ? '&full=1' : '');
   const DEFAULT_LENGTH = 5;       // durée par défaut de l'extrait (secondes)
   const MIN_LENGTH = 0.1;
@@ -35,10 +42,10 @@
   // Variantes de "include" : si l'API en refuse une, on passe à la suivante (moins riche).
   const INC = {
     theme: ['anime,animethemeentries.videos.audio,song.artists', 'anime,animethemeentries.videos.audio,song'],
-    members: ['animethemes.song,animesynonyms', 'animethemes.song,synonyms', 'animethemes.song', 'animethemes'],   // saisons d'une franchise
+    members: ['animethemes.song,animesynonyms', 'animethemes.song', 'animethemes'],   // saisons d'une franchise
     search: ['animesynonyms', ''],                                                    // suggestions de la recherche
-    detail: ['resources,images,animesynonyms', 'resources,images,synonyms', 'resources,images', 'resources', ''],  // lien MAL, couverture, noms anglais
-    lib: ['animethemes.song.artists,animesynonyms', 'animethemes.song.artists,synonyms', 'animethemes.song', 'animethemes'] // bibliothèque
+    detail: ['resources,images,animesynonyms', 'resources,images', 'resources', ''],  // lien MAL, couverture, noms anglais
+    lib: ['animethemes.song.artists,animesynonyms', 'animethemes.song', 'animethemes'] // bibliothèque
   };
   const incLevel = { theme: 0, members: 0, search: 0, detail: 0, lib: 0 };
 
@@ -163,6 +170,19 @@
       try { localStorage.setItem(key, String(value)); } catch (e) { /* ignoré */ }
     }
   };
+
+  // Les « includes » que l'API a refusés (400) sont retenus d'une visite à l'autre, pour ne plus perdre une requête à chaque démarrage
+  const INC_KEY = 'opening-quiz-inc-v1';
+  const saveIncLevel = () => store.set(INC_KEY, JSON.stringify({ t: Date.now(), l: incLevel }));
+  (() => {
+    try {
+      const o = JSON.parse(store.get(INC_KEY, '{}'));
+      if (!o || !o.l || Date.now() - (o.t || 0) > 7 * 24 * 3600 * 1000) return;     // périmé : on réessaie
+      Object.keys(incLevel).forEach((k) => {
+        if (Number.isInteger(o.l[k])) incLevel[k] = Math.max(0, Math.min(o.l[k], INC[k].length - 1));
+      });
+    } catch (e) { /* ignoré */ }
+  })();
 
   /* ------------------------------------------------------------------
    * Données : franchises faciles / moyennes (js/animes.js)
@@ -713,6 +733,7 @@
       const res = await apiFetch(path, p, signal);
       if ((res.status === 400 || res.status === 422) && i < list.length - 1) {
         incLevel[kind] = i + 1;
+        saveIncLevel();
         continue;
       }
       return res;
@@ -1346,22 +1367,23 @@
   function fetchAudioBlob(url) {
     const known = audioBlobs.get(url);
     if (known) return known.promise;
-    const rec = { blobUrl: '', promise: null };
+    const rec = { blobUrl: '', blob: null, promise: null };
     rec.promise = (async () => {
       const ctl = new AbortController();
       const timer = setTimeout(() => ctl.abort(), 25000);
-      const viaProxy = relayUp();
+      const viaProxy = blobRelay.up();
       try {
         const res = await fetch(viaProxy ? viaRelay(url, true) : url, { signal: ctl.signal });
         if (!res.ok) throw new Error('HTTP ' + res.status);
         const blob = await res.blob();
         // L'ancien relais ne renvoie que le début du fichier (≈ 20 s) : on ne s'en sert jamais comme opening complet
         if (viaProxy && blob.size <= 330000) throw new Error('fichier partiel');
+        rec.blob = blob;
         rec.blobUrl = URL.createObjectURL(blob);
-        if (viaProxy) relayWorked();
+        if (viaProxy) blobRelay.ok();
         return rec.blobUrl;
       } catch (e) {
-        if (viaProxy) relayFailed();
+        if (viaProxy) blobRelay.fail();
         return '';
       } finally { clearTimeout(timer); }
     })();
@@ -1420,46 +1442,62 @@
     return -1;
   }
 
-  const leadCache = new Map();     // adresse -> { lead, note } (une seule demande par fichier, réussie ou non)
+  const leadCache = new Map();     // adresse -> { lead, note, ok } (un échec n'est pas gardé : on réessaiera)
+
+  // Analyse un fichier audio (ou son début) : { lead, note, ok }
+  async function leadFromBuffer(buf) {
+    const Ctx = window.OfflineAudioContext || window.webkitOfflineAudioContext;
+    if (!Ctx) return { lead: 0, note: 'analyse non disponible sur ce navigateur', ok: false };
+    const ctx = new Ctx(1, 1, 22050);
+    const data = await new Promise((resolve, reject) => {
+      const r = ctx.decodeAudioData(buf, resolve, reject);
+      if (r && typeof r.then === 'function') r.then(resolve, reject);
+    });
+    const chans = [];
+    for (let c = 0; c < data.numberOfChannels; c++) chans.push(data.getChannelData(c));
+    const t = findFirstSound(chans, data.sampleRate);
+    return t < 0 ? { lead: 0, note: 'aucun son trouvé', ok: true } : { lead: t, note: 'son trouvé', ok: true };
+  }
+
   function audioLead(url) {
     if (leadCache.has(url)) return leadCache.get(url);
     const p = (async () => {
-      const done = (lead, note) => ({ lead, note });
       const ctl = new AbortController();
-      const timer = setTimeout(() => ctl.abort(), 8000);
+      const timer = setTimeout(() => ctl.abort(), 15000);
       try {
         const res = await fetch(viaRelay(url, false), { signal: ctl.signal });
-        if (!res.ok) { relayFailed(); return done(0, 'relais : erreur ' + res.status); }
-        relayWorked();
+        if (!res.ok) { leadRelay.fail(); return { lead: 0, note: 'relais : erreur ' + res.status, ok: false }; }
         const buf = await res.arrayBuffer();
-        const Ctx = window.OfflineAudioContext || window.webkitOfflineAudioContext;
-        if (!Ctx) return done(0, 'analyse non disponible sur ce navigateur');
-        const ctx = new Ctx(1, 1, 22050);
-        const data = await new Promise((resolve, reject) => {
-          const r = ctx.decodeAudioData(buf, resolve, reject);
-          if (r && typeof r.then === 'function') r.then(resolve, reject);
-        });
-        const chans = [];
-        for (let c = 0; c < data.numberOfChannels; c++) chans.push(data.getChannelData(c));
-        const t = findFirstSound(chans, data.sampleRate);
-        return t < 0 ? done(0, 'aucun son trouvé') : done(t, 'son trouvé');
+        leadRelay.ok();
+        return await leadFromBuffer(buf);
       } catch (e) {
-        relayFailed();
-        return done(0, 'analyse impossible : ' + (e && e.message ? e.message : e));
+        if (!(e && e.name === 'AbortError')) leadRelay.fail();
+        return { lead: 0, note: 'analyse impossible : ' + (e && e.message ? e.message : e), ok: false };
       } finally { clearTimeout(timer); }
     })();
     leadCache.set(url, p);
+    p.then((r) => { if (!r.ok) leadCache.delete(url); });
     return p;
   }
 
   async function prepareAudio(url, forcedStart) {
-    const leadReq = SPEED && relayUp() ? audioLead(url) : null;
-    const local = await Promise.race([fetchAudioBlob(url), sleep(5000).then(() => { relayFailed(); return ''; })]);
+    const leadReq = SPEED && leadRelay.up() ? audioLead(url) : null;
+    const [local, leadRes] = await Promise.all([
+      Promise.race([fetchAudioBlob(url), sleep(5000).then(() => '')]),
+      leadReq ? Promise.race([leadReq, sleep(12000).then(() => ({ lead: 0, note: 'relais trop lent', ok: false }))]) : null
+    ]);
     let lead = 0;
-    if (leadReq) {
-      const res = await Promise.race([leadReq, sleep(6000).then(() => { relayFailed(); return { lead: 0, note: 'relais trop lent' }; })]);
-      lead = res.lead;
-      leadText.set(url, lead.toFixed(2).replace('.', ',') + ' s (' + res.note + ') · fichier ' + (local ? 'complet' : 'lu en direct'));
+    if (SPEED) {
+      let res = leadRes;
+      // Le début du fichier n'a pas pu être analysé, mais le fichier entier est là : on l'analyse lui
+      const rec = audioBlobs.get(url);
+      if ((!res || !res.ok) && rec && rec.blob) {
+        try { res = await leadFromBuffer(await rec.blob.arrayBuffer()); res.note += ' (fichier entier)'; } catch (e) { /* ignoré */ }
+      }
+      if (res) {
+        lead = res.lead;
+        leadText.set(url, lead.toFixed(2).replace('.', ',') + ' s (' + res.note + ') · fichier ' + (local ? 'complet' : 'lu en direct'));
+      }
     }
     return new Promise((resolve) => {
       let finished = false;
@@ -1648,7 +1686,8 @@
         const [ok] = await Promise.all([prepareAudio(info.url), prepareInfo(info)]);
         if (id !== roundId) return null;
         if (!ok) {
-          console.warn('[Opening Quiz] Audio impossible à charger :', info.anime.title);
+          console.warn('[Opening Quiz] Audio impossible à charger :', info.anime.title, '·', lastFail);
+          if (id === roundId) statusEl.textContent = 'Chargement… (l\'audio de « ' + info.anime.title + ' » ne répond pas : ' + (lastFail || 'raison inconnue') + ')';
           continue;
         }
         info.snippetStart = snippetStart;
@@ -1711,7 +1750,7 @@
     const info = await acquireRound(id, soloOpts());
     if (info === null) return;
     if (!info) {
-      showLoadError('Impossible de charger un opening (connexion ?). Clique sur « Suivant » pour réessayer.');
+      showLoadError('Impossible de charger un opening (' + (lastFail || 'connexion ?') + '). Clique sur « Suivant » pour réessayer.');
       return;
     }
     activateRound(info, soloOpts());
