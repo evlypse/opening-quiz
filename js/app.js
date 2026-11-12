@@ -36,7 +36,7 @@
   // Index des franchises (mis en cache dans le navigateur pour ne pas tout recalculer)
   const INDEX_KEY = 'opening-quiz-index-v4';
   const INDEX_TTL = 14 * 24 * 3600 * 1000;   // 14 jours
-  const INDEX_DELAY = 1100;                  // pause (ms) entre deux requêtes d'indexation
+  const INDEX_DELAY = 3000;                  // pause (ms) entre deux requêtes d'indexation (discret pour ne pas surcharger AnimeThemes)
   const NAMES_KEY = 'opening-quiz-names-v1';
 
   // Variantes de "include" : si l'API en refuse une, on passe à la suivante (moins riche).
@@ -706,20 +706,47 @@
   /* ------------------------------------------------------------------
    * API AnimeThemes (avec mémoire des requêtes déjà faites)
    * ------------------------------------------------------------------ */
+  let loadingHold = 0;               // > 0 : un chargement est en cours, l'indexation de fond attend
   let lastFail = '';                 // dernière cause d'échec, affichée si rien ne charge
+  // Après une erreur du serveur (503, 429…), toutes les requêtes attendent un peu : insister aggraverait la surcharge
+  let apiBackoffUntil = 0;
+
   async function apiFetch(path, params, signal) {
     const qs = Object.entries(params || {})
       .map(([k, v]) => `${k}=${encodeURIComponent(v)}`)
       .join('&');
-    let res;
-    const t0 = Date.now();
-    try { res = await fetch(`${API}${path}${qs ? '?' + qs : ''}`, { signal }); }
-    catch (e) { if (e && e.name !== 'AbortError') lastFail = 'API injoignable'; throw e; }
-    if (Date.now() - t0 > 3000) console.warn('[Opening Quiz] Requête lente (' + ((Date.now() - t0) / 1000).toFixed(1) + ' s) :', path, res.status);
-    if (!res.ok && res.status !== 400 && res.status !== 422) lastFail = 'API ' + res.status;
-    if (res.status === 429) {          // trop de requêtes : on laisse souffler l'API
-      await sleep(1500);
-      throw new Error('Trop de requêtes (429)');
+    const url = `${API}${path}${qs ? '?' + qs : ''}`;
+    let res = null;
+    for (let attempt = 0; attempt < 3; attempt++) {
+      const wait = apiBackoffUntil - Date.now();
+      if (wait > 0) await sleep(Math.min(wait, 8000));
+      if (signal && signal.aborted) throw new DOMException('Aborted', 'AbortError');
+      const t0 = Date.now();
+      let retry = false;
+      try {
+        res = await fetch(url, { signal });
+        if (Date.now() - t0 > 3000) console.warn('[Opening Quiz] Requête lente (' + ((Date.now() - t0) / 1000).toFixed(1) + ' s) :', path, res.status);
+        if (res.status === 429 || res.status === 502 || res.status === 503 || res.status === 504) {
+          lastFail = 'API ' + res.status;
+          retry = true;
+        } else {
+          if (!res.ok && res.status !== 400 && res.status !== 422) lastFail = 'API ' + res.status;
+          return res;
+        }
+      } catch (e) {
+        if (e && e.name === 'AbortError') throw e;
+        lastFail = 'API injoignable';        // un 503 sans autorisation « CORS » apparaît aussi comme une simple erreur réseau
+        if (attempt === 2) throw e;
+        retry = true;
+      }
+      if (retry) {
+        if (attempt === 2) {
+          if (res && res.status === 429) throw new Error('Trop de requêtes (429)');
+          return res;
+        }
+        const ra = res && res.headers && res.headers.get ? Number(res.headers.get('Retry-After')) : 0;
+        apiBackoffUntil = Date.now() + Math.min(ra > 0 ? ra * 1000 : 1500 * (attempt + 1), 6000);
+      }
     }
     return res;
   }
@@ -1335,15 +1362,18 @@
       [todo[i], todo[j]] = [todo[j], todo[i]];
     }
 
-    let sinceSave = 0;
+    let sinceSave = 0, fails = 0;
     for (const f of todo) {
       if (f._data !== undefined || f._dead) continue;
       while (loadingHold > 0) await sleep(500);
       try {
         await resolveCurated(f);
+        fails = 0;
       } catch (err) {
         console.warn('[Opening Quiz] Indexation :', err);
-        await sleep(2000);
+        // L'API est en difficulté : on ralentit, puis on abandonne pour 10 minutes plutôt que d'insister
+        if (++fails >= 4) { store.set('opening-quiz-index-cooldown', String(Date.now() + 10 * 60 * 1000)); break; }
+        await sleep(Math.min(5000 * Math.pow(2, fails - 1), 60000));
         continue;
       }
       renderCounts();
@@ -1747,7 +1777,9 @@
     resetUI();
     statusEl.textContent = 'Chargement…';
 
-    const info = await acquireRound(id, soloOpts());
+    loadingHold++;
+    let info;
+    try { info = await acquireRound(id, soloOpts()); } finally { loadingHold--; }
     if (info === null) return;
     if (!info) {
       showLoadError('Impossible de charger un opening (' + (lastFail || 'connexion ?') + '). Clique sur « Suivant » pour réessayer.');
@@ -1780,7 +1812,6 @@
   }
 
   // Défis : pendant que l'indexation tourne en arrière-plan, on la met en pause (elle prend la place des requêtes du jeu)
-  let loadingHold = 0;
   const withTimeout = (promise, ms) => new Promise((resolve, reject) => {
     const t = setTimeout(() => reject(new Error('délai dépassé')), ms);
     promise.then((v) => { clearTimeout(t); resolve(v); }, (e) => { clearTimeout(t); reject(e); });
@@ -2431,5 +2462,6 @@
   updateLevelUI();
   renderCounts();
   loadRound();
-  setTimeout(runIndex, 2500);       // l'indexation démarre après le premier chargement
+  // L'indexation de fond démarre bien après le premier chargement, et pas du tout si l'API a eu des difficultés récemment
+  setTimeout(() => { if (Date.now() > Number(store.get('opening-quiz-index-cooldown', '0'))) runIndex(); }, 20000);
 })();
