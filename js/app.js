@@ -883,19 +883,31 @@
   // Recherche d'animes par nom (avec leurs openings), pour retrouver toutes les saisons.
   // Les réponses sont gardées en mémoire : une même franchise n'est demandée qu'une fois.
   const membersCache = new Map();
+  // La recherche par nom (?q=) dépend d'un service d'AnimeThemes qui tombe parfois en panne (503). Dans ce cas on ne
+  // la redemande pas pendant 45 s, et on se rabat sur la fiche de l'anime par son identifiant (une seule saison).
+  let searchDownUntil = 0;
   function getMembersList(q) {
     const key = String(q).toLowerCase();
     if (membersCache.has(key)) return membersCache.get(key);
+    if (Date.now() < searchDownUntil) return Promise.resolve([]);
     const p = (async () => {
-      let res = await fetchVariants('members', '/anime', { q, 'filter[has]': 'animethemes', 'page[size]': 30 });
-      if (res && (res.status === 400 || res.status === 422)) {
-        res = await fetchVariants('members', '/anime', { q, 'page[size]': 30 });
+      try {
+        let res = await fetchVariants('members', '/anime', { q, 'filter[has]': 'animethemes', 'page[size]': 30 });
+        if (res && (res.status === 400 || res.status === 422)) {
+          res = await fetchVariants('members', '/anime', { q, 'page[size]': 30 });
+        }
+        if (!res || !res.ok) {
+          if (!res || res.status >= 500 || res.status === 429) searchDownUntil = Date.now() + 45000;
+          return [];
+        }
+        const data = await res.json();
+        const list = (data.anime || []).map(entryInfo);
+        indexEntries(list);
+        return list;
+      } catch (err) {
+        if (!(err && err.name === 'AbortError')) { searchDownUntil = Date.now() + 45000; console.warn('[Opening Quiz] Recherche par nom indisponible :', err && err.message); }
+        return [];
       }
-      if (!res || !res.ok) return [];
-      const data = await res.json();
-      const list = (data.anime || []).map(entryInfo);
-      indexEntries(list);
-      return list;
     })();
     membersCache.set(key, p);
     p.then((list) => { if (!list.length) membersCache.delete(key); }, () => membersCache.delete(key));
@@ -932,10 +944,14 @@
   /* --- Franchises de la liste (facile / moyen) --- */
 
   function resolveCurated(f) {
+    // Un résultat partiel (une seule saison, recherche en panne) est refait au bout de 5 minutes, quand la recherche remarche
+    if (f._data && f._partialAt && Date.now() - f._partialAt > 5 * 60 * 1000 && Date.now() > searchDownUntil) {
+      f._data = undefined; f._p = null; f._partialAt = 0;
+    }
     if (f._data !== undefined) return Promise.resolve(f._data);
     if (!f._p) {
       f._p = doResolveCurated(f).then(
-        (d) => { f._data = d; if (!d) f._dead = true; return d; },
+        (d) => { f._data = d; f._partialAt = d && d.partial ? Date.now() : 0; if (!d) f._dead = true; return d; },
         (err) => { f._p = null; throw err; }
       );
     }
@@ -945,6 +961,7 @@
   async function doResolveCurated(f) {
     const q = f.query || f.slug.replace(/_/g, ' ');
     const list = (await getMembersList(q)).slice();
+    const partial = !list.length && Date.now() < searchDownUntil;     // recherche en panne : on n'aura qu'une saison
 
     let anchor = list.find((e) => e.slug === f.slug)
       || list.find((e) => f.keys.includes(keyOf(e.name)) && !BAD_FORMATS.has(e.format))
@@ -966,7 +983,7 @@
 
     const ops = computeOps(members, anchor.slug);
     if (!ops.length) return null;
-    return { name: anchor.name, ops };
+    return { name: anchor.name, ops, partial };
   }
 
   /* --- Détails d'un opening / d'un anime --- */
@@ -1343,7 +1360,7 @@
     try {
       const d = {};
       ANIMES.forEach((f) => {
-        if (f._data) d[f.slug] = { n: f._data.name, o: f._data.ops.map((o) => [o.themeId, o.number, o.year, o.s, o.seq, o.fe ? 1 : 0]) };
+        if (f._data && !f._partialAt) d[f.slug] = { n: f._data.name, o: f._data.ops.map((o) => [o.themeId, o.number, o.year, o.s, o.seq, o.fe ? 1 : 0]) };
         else if (f._dead) d[f.slug] = null;
       });
       localStorage.setItem(INDEX_KEY, JSON.stringify({ t: indexStamp, d, total: totalOPs, known: totalKnown }));
@@ -2029,6 +2046,7 @@
   async function remoteSearch(query, seq) {
     const qn = norm(query);
     if (remoteCache.has(qn)) { mergeSuggestions(remoteCache.get(qn)); return; }
+    if (Date.now() < searchDownUntil) return;                // service de recherche en panne : suggestions locales seulement
 
     if (searchAbort) searchAbort.abort();
     searchAbort = new AbortController();
@@ -2056,7 +2074,7 @@
 
       mergeSuggestions(groups);
     } catch (err) {
-      if (err.name !== 'AbortError') console.warn('[Opening Quiz] Recherche impossible :', err);
+      if (err.name !== 'AbortError') { searchDownUntil = Date.now() + 45000; console.warn('[Opening Quiz] Recherche impossible :', err); }
     } finally {
       loadingHold--;
       if (seq === searchSeq) { searching = false; renderSuggestions(); }
