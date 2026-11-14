@@ -173,11 +173,17 @@
 
   // Les « includes » que l'API a refusés (400) sont retenus d'une visite à l'autre, pour ne plus perdre une requête à chaque démarrage
   const INC_KEY = 'opening-quiz-inc-v1';
-  const saveIncLevel = () => store.set(INC_KEY, JSON.stringify({ t: Date.now(), l: incLevel }));
+  let incUntil = 0;                  // jusqu'à quand ce qu'on a retenu est valable
+  const saveIncLevel = (temporary) => {
+    const ttl = temporary ? 3 * 3600 * 1000 : 7 * 24 * 3600 * 1000;     // 3 h si c'était une erreur du serveur, 7 jours si un refus
+    incUntil = incUntil ? Math.min(incUntil, Date.now() + ttl) : Date.now() + ttl;
+    store.set(INC_KEY, JSON.stringify({ until: incUntil, l: incLevel }));
+  };
   (() => {
     try {
       const o = JSON.parse(store.get(INC_KEY, '{}'));
-      if (!o || !o.l || Date.now() - (o.t || 0) > 7 * 24 * 3600 * 1000) return;     // périmé : on réessaie
+      if (!o || !o.l || !(o.until > Date.now())) return;                // périmé : on réessaie
+      incUntil = o.until;
       Object.keys(incLevel).forEach((k) => {
         if (Number.isInteger(o.l[k])) incLevel[k] = Math.max(0, Math.min(o.l[k], INC[k].length - 1));
       });
@@ -711,13 +717,13 @@
   // Après une erreur du serveur (503, 429…), toutes les requêtes attendent un peu : insister aggraverait la surcharge
   let apiBackoffUntil = 0;
 
-  async function apiFetch(path, params, signal) {
+  async function apiFetch(path, params, signal, tries = 3) {
     const qs = Object.entries(params || {})
       .map(([k, v]) => `${k}=${encodeURIComponent(v)}`)
       .join('&');
     const url = `${API}${path}${qs ? '?' + qs : ''}`;
     let res = null;
-    for (let attempt = 0; attempt < 3; attempt++) {
+    for (let attempt = 0; attempt < tries; attempt++) {
       const wait = apiBackoffUntil - Date.now();
       if (wait > 0) await sleep(Math.min(wait, 8000));
       if (signal && signal.aborted) throw new DOMException('Aborted', 'AbortError');
@@ -736,11 +742,11 @@
       } catch (e) {
         if (e && e.name === 'AbortError') throw e;
         lastFail = 'API injoignable';        // un 503 sans autorisation « CORS » apparaît aussi comme une simple erreur réseau
-        if (attempt === 2) throw e;
+        if (attempt === tries - 1) throw e;
         retry = true;
       }
       if (retry) {
-        if (attempt === 2) {
+        if (attempt === tries - 1) {
           if (res && res.status === 429) throw new Error('Trop de requêtes (429)');
           return res;
         }
@@ -755,12 +761,23 @@
   async function fetchVariants(kind, path, params, signal) {
     const list = INC[kind];
     for (let i = Math.min(incLevel[kind], list.length - 1); i < list.length; i++) {
+      const last = i >= list.length - 1;
       const p = { ...params };
       if (list[i]) p.include = list[i];
-      const res = await apiFetch(path, p, signal);
-      if ((res.status === 400 || res.status === 422) && i < list.length - 1) {
+      let res = null, failed = false;
+      try {
+        // Variante enrichie : un seul essai (sinon on perd du temps) ; la plus simple : tous les essais
+        res = await apiFetch(path, p, signal, last ? 3 : 1);
+      } catch (e) {
+        if (e && e.name === 'AbortError') throw e;
+        if (last) throw e;
+        failed = true;                      // erreur réseau / 503 sans autorisation « CORS » : on essaie plus simple
+      }
+      const refused = res && (res.status === 400 || res.status === 422);
+      const serverError = failed || (res && res.status >= 500);
+      if ((refused || serverError) && !last) {
         incLevel[kind] = i + 1;
-        saveIncLevel();
+        saveIncLevel(serverError);          // un refus (400) est durable ; une erreur 5xx peut être passagère
         continue;
       }
       return res;
@@ -2021,21 +2038,31 @@
   // des synonymes, on le découvre une seule fois (et plus à chaque recherche).
   const SEARCH_INCS = ['animesynonyms', 'synonyms', ''];
   const searchCfg = (() => {
-    try { const c = JSON.parse(store.get('opening-quiz-searchcfg-v1', '{}')); return { has: c.has !== false, inc: Math.min(Math.max(Number(c.inc) || 0, 0), SEARCH_INCS.length - 1) }; }
-    catch (e) { return { has: true, inc: 0 }; }
+    try {
+      const c = JSON.parse(store.get('opening-quiz-searchcfg-v2', '{}'));
+      if (!(c.until > Date.now())) return { has: true, inc: 0 };                // périmé : on réessaie
+      return { has: c.has !== false, inc: Math.min(Math.max(Number(c.inc) || 0, 0), SEARCH_INCS.length - 1), until: c.until };
+    } catch (e) { return { has: true, inc: 0 }; }
   })();
 
   async function searchRequest(q, signal) {
-    for (let attempt = 0; attempt < 4; attempt++) {
+    for (let attempt = 0; attempt < 5; attempt++) {
       const params = { q, 'page[size]': 12 };
       if (searchCfg.has) params['filter[has]'] = 'animethemes';
       if (SEARCH_INCS[searchCfg.inc]) params.include = SEARCH_INCS[searchCfg.inc];
-      const res = await apiFetch('/anime', params, signal);
-      if (res.status !== 400 && res.status !== 422) return res;
-      if (searchCfg.has) searchCfg.has = false;                    // refusé : on teste d'abord sans le filtre…
-      else if (searchCfg.inc < SEARCH_INCS.length - 1) searchCfg.inc++;   // …puis avec une autre écriture des synonymes
-      else return res;
-      store.set('opening-quiz-searchcfg-v1', JSON.stringify(searchCfg));
+      const simplest = !searchCfg.has && searchCfg.inc >= SEARCH_INCS.length - 1;
+      let res = null, failed = false;
+      try { res = await apiFetch('/anime', params, signal, simplest ? 3 : 1); }
+      catch (e) { if ((e && e.name === 'AbortError') || simplest) throw e; failed = true; }
+      const refused = res && (res.status === 400 || res.status === 422);
+      const serverError = failed || (res && res.status >= 500);
+      if (!refused && !serverError) return res;
+      if (simplest) return res;
+      // On simplifie : d'abord sans les noms alternatifs, puis sans le filtre « has »
+      if (searchCfg.inc < SEARCH_INCS.length - 1) searchCfg.inc = SEARCH_INCS.length - 1;
+      else searchCfg.has = false;
+      searchCfg.until = Math.min(searchCfg.until || Infinity, Date.now() + (serverError ? 3 * 3600 * 1000 : 7 * 24 * 3600 * 1000));
+      store.set('opening-quiz-searchcfg-v2', JSON.stringify(searchCfg));
     }
     return null;
   }
