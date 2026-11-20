@@ -716,36 +716,62 @@
   let lastFail = '';                 // dernière cause d'échec, affichée si rien ne charge
   // Après une erreur du serveur (503, 429…), toutes les requêtes attendent un peu : insister aggraverait la surcharge
   let apiBackoffUntil = 0;
+  // Si AnimeThemes enchaîne les erreurs (503…), on arrête de les solliciter pendant 1 minute : insister ne ferait qu'aggraver la
+  // situation (et risque de faire bloquer ta connexion), et le site peut afficher clairement ce qui se passe.
+  let apiFailStreak = 0, apiPausedUntil = 0;
+  // Si AnimeThemes refuse les demandes du navigateur (503…), elles passent par le relais Cloudflare (autre adresse, autre origine)
+  let apiViaRelayUntil = 0;
+  const apiRelay = mkBreaker();
 
   async function apiFetch(path, params, signal, tries = 3) {
     const qs = Object.entries(params || {})
       .map(([k, v]) => `${k}=${encodeURIComponent(v)}`)
       .join('&');
     const url = `${API}${path}${qs ? '?' + qs : ''}`;
-    let res = null;
+    const relayUrl = LEAD_PROXY ? LEAD_PROXY + (LEAD_PROXY.indexOf('?') < 0 ? '?' : '&') + 'api=' + encodeURIComponent(path + (qs ? '?' + qs : '')) : '';
+    let res = null, switched = false;
+    if (Date.now() < apiPausedUntil) {
+      lastFail = 'AnimeThemes ne répond pas (erreur 503)';
+      throw new Error('AnimeThemes en pause');
+    }
     for (let attempt = 0; attempt < tries; attempt++) {
       const wait = apiBackoffUntil - Date.now();
       if (wait > 0) await sleep(Math.min(wait, 8000));
       if (signal && signal.aborted) throw new DOMException('Aborted', 'AbortError');
       const t0 = Date.now();
       let retry = false;
+      const useRelay = !!relayUrl && Date.now() < apiViaRelayUntil && apiRelay.up();
+      // Passe au relais dès que la demande directe échoue (une seule fois par appel), sans attendre
+      const trySwitch = () => {
+        if (useRelay || switched || !relayUrl || !apiRelay.up()) return false;
+        switched = true;
+        apiViaRelayUntil = Date.now() + 15 * 60 * 1000;
+        return true;
+      };
       try {
-        res = await fetch(url, { signal });
+        res = await fetch(useRelay ? relayUrl : url, { signal });
         if (Date.now() - t0 > 3000) console.warn('[Opening Quiz] Requête lente (' + ((Date.now() - t0) / 1000).toFixed(1) + ' s) :', path, res.status);
         if (res.status === 429 || res.status === 502 || res.status === 503 || res.status === 504) {
           lastFail = 'API ' + res.status;
+          if (useRelay) apiRelay.fail();
+          else if (trySwitch()) { attempt--; continue; }
           retry = true;
         } else {
+          if (useRelay) apiRelay.ok();
+          apiFailStreak = 0;
           if (!res.ok && res.status !== 400 && res.status !== 422) lastFail = 'API ' + res.status;
           return res;
         }
       } catch (e) {
         if (e && e.name === 'AbortError') throw e;
         lastFail = 'API injoignable';        // un 503 sans autorisation « CORS » apparaît aussi comme une simple erreur réseau
+        if (useRelay) apiRelay.fail();
+        else if (trySwitch()) { attempt--; continue; }
         if (attempt === tries - 1) throw e;
         retry = true;
       }
       if (retry) {
+        if (++apiFailStreak >= 6) { apiFailStreak = 0; apiPausedUntil = Date.now() + 60 * 1000; lastFail = 'AnimeThemes ne répond pas (erreur 503)'; }
         if (attempt === tries - 1) {
           if (res && res.status === 429) throw new Error('Trop de requêtes (429)');
           return res;
@@ -1816,7 +1842,9 @@
     try { info = await acquireRound(id, soloOpts()); } finally { loadingHold--; }
     if (info === null) return;
     if (!info) {
-      showLoadError('Impossible de charger un opening (' + (lastFail || 'connexion ?') + '). Clique sur « Suivant » pour réessayer.');
+      showLoadError(/ne répond pas/.test(lastFail)
+        ? 'AnimeThemes ne répond pas en ce moment (erreur 503) : ce n\'est pas un problème de ton site. Patiente quelques minutes puis clique sur « Suivant ».'
+        : 'Impossible de charger un opening (' + (lastFail || 'connexion ?') + '). Clique sur « Suivant » pour réessayer.');
       return;
     }
     activateRound(info, soloOpts());

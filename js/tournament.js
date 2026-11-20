@@ -86,7 +86,7 @@
   async function fetchAnime(slug) {
     const incs = ['animethemes.animethemeentries.videos.audio,animethemes.song.artists', 'animethemes.animethemeentries.videos.audio,animethemes.song'];
     for (const inc of incs) {
-      const res = await fetch(`${API}/anime/${encodeURIComponent(slug)}?include=${encodeURIComponent(inc)}`);
+      const res = await apiGet(`${API}/anime/${encodeURIComponent(slug)}?include=${encodeURIComponent(inc)}`);
       if (res.status === 429) { await sleep(1500); throw new Error('429'); }
       if (res.status === 400 || res.status === 422) continue;
       if (!res.ok) throw new Error('HTTP ' + res.status);
@@ -359,8 +359,20 @@
     return 0;
   };
 
+  // Demande à l'API d'AnimeThemes ; si elle refuse le navigateur (503…), on passe par le relais Cloudflare
+  const RELAY = 'https://opening-proxy.lansorrien.workers.dev/';
+  async function apiGet(url) {
+    try {
+      const r = await fetch(url);
+      if (r.status !== 429 && r.status < 500) return r;
+    } catch (e) { /* on tente le relais */ }
+    if (/[?&]norelay\b/.test(location.search)) return fetch(url);
+    const u = new URL(url);
+    return fetch(RELAY + '?api=' + encodeURIComponent(u.pathname + u.search));
+  }
+
   async function getJson(url) {
-    const res = await fetch(url);
+    const res = await apiGet(url);
     if (res.status === 429) { await sleep(1500); throw new Error('429'); }
     if (res.status === 400 || res.status === 422) return { bad: true };
     if (!res.ok) throw new Error('HTTP ' + res.status);
